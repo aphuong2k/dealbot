@@ -1,0 +1,144 @@
+<div class="groups-page">
+  <!-- Page Header -->
+  <div class="page-header glass-card">
+    <div>
+      <h2 class="section-title">Quản Trị Hội Nhóm Facebook</h2>
+      <p class="section-subtitle">Mỗi nhóm gán cố định 1 nick (sticky account), tự động học hỏi tỷ lệ duyệt và phạt hạ điểm khi bị lỗi.</p>
+    </div>
+    <div class="header-actions">
+      <button nz-button class="btn-primary" (click)="triggerDiscover()" [nzLoading]="discoverLoading">
+        🔎 AI Khám Phá Nhóm Mới (Thứ 2, 5h)
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tabs-card glass-card">
+    <nz-tabset (nzSelectedIndexChange)="onTabChange($event)">
+      <nz-tab nzTitle="🌐 Tất cả nhóm"></nz-tab>
+      <nz-tab nzTitle="⏳ Chờ duyệt (Candidate)"></nz-tab>
+      <nz-tab nzTitle="✅ Đang hoạt động (Joined)"></nz-tab>
+      <nz-tab nzTitle="⚠️ Đang phạt (Cooling Down)"></nz-tab>
+      <nz-tab nzTitle="🚫 Đã chặn (Banned)"></nz-tab>
+    </nz-tabset>
+
+    <!-- Search bar -->
+    <div class="filter-bar">
+      <input nz-input placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" style="max-width: 380px;" />
+      <button nz-button class="btn-outline" (click)="fetchGroups()">Lọc</button>
+    </div>
+  </div>
+
+  <!-- Groups Table -->
+  <div class="table-container glass-card">
+    <nz-table
+      #groupsTable
+      [nzData]="groups"
+      [nzLoading]="loading"
+      [nzPageSize]="10"
+      nzShowPagination
+      nzShowSizeChanger
+    >
+      <thead>
+        <tr>
+          <th>Tên Nhóm Facebook</th>
+          <th nzWidth="140px">Loại / Ngách</th>
+          <th nzWidth="150px">Nick Phụ Trách</th>
+          <th nzWidth="160px">Điểm Uy Tín (0-200)</th>
+          <th nzWidth="120px">Cho Link Aff</th>
+          <th nzWidth="140px">Thành Công / Lỗi</th>
+          <th nzWidth="180px">Thao Tác Duyệt</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let g of groupsTable.data">
+          <!-- Name & Link -->
+          <td>
+            <div class="group-col-name">
+              <a [href]="g.url" target="_blank" class="group-link">
+                {{ g.name || 'Group Facebook' }} ↗
+              </a>
+              <span class="group-url-text">{{ g.url }}</span>
+            </div>
+          </td>
+
+          <!-- Kind & Niche -->
+          <td>
+            <span *ngIf="g.kind === 'dealhunt'" class="badge-dealhunt">Săn Sale</span>
+            <span *ngIf="g.kind !== 'dealhunt'" class="badge-niche">{{ g.niche }}</span>
+          </td>
+
+          <!-- Assigned Account -->
+          <td>
+            <nz-select [ngModel]="g.account" (ngModelChange)="onAccountChange(g, $event)" style="width: 130px;" nzSize="small">
+              <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label"></nz-option>
+            </nz-select>
+          </td>
+
+          <!-- Priority Score -->
+          <td>
+            <div class="priority-box">
+              <div class="priority-header">
+                <span class="score-bold">{{ g.priority_score | number:'1.0-0' }}</span>
+                <span class="score-max">/200</span>
+              </div>
+              <nz-progress
+                [nzPercent]="(g.priority_score / 200) * 100"
+                [nzShowInfo]="false"
+                [nzStrokeColor]="g.priority_score >= 100 ? '#10b981' : (g.priority_score >= 60 ? '#f59e0b' : '#ef4444')"
+                nzSize="small"
+              ></nz-progress>
+            </div>
+          </td>
+
+          <!-- Allow Link Switch -->
+          <td>
+            <nz-switch
+              [ngModel]="g.allow_link === 1"
+              (ngModelChange)="onAllowLinkChange(g, $event)"
+              nzCheckedChildren="Có"
+              nzUnCheckedChildren="Cấm"
+            ></nz-switch>
+          </td>
+
+          <!-- Success / Fails -->
+          <td>
+            <div class="stats-col">
+              <span class="text-success">Thành công: {{ g.success_count || 0 }}</span>
+              <span [ngClass]="(g.consecutive_fails || 0) > 0 ? 'text-danger' : 'text-muted'">
+                Lỗi chuỗi: {{ g.consecutive_fails || 0 }}
+              </span>
+            </div>
+          </td>
+
+          <!-- Approval Buttons -->
+          <td>
+            <div class="actions-cell">
+              <button
+                *ngIf="g.status === 'candidate' || g.status === 'cooling_down'"
+                nz-button
+                nzSize="small"
+                class="btn-approve"
+                (click)="updateStatus(g, 'joined')"
+              >
+                Vào Nhóm
+              </button>
+              <button
+                *ngIf="g.status === 'candidate'"
+                nz-button
+                nzSize="small"
+                class="btn-skip"
+                (click)="updateStatus(g, 'skip')"
+              >
+                Bỏ qua
+              </button>
+              <span *ngIf="g.status === 'joined'" class="status-badge joined">Đã tham gia</span>
+              <span *ngIf="g.status === 'cooling_down'" class="status-badge cooling">Tạm phạt 7 ngày</span>
+              <span *ngIf="g.status === 'banned'" class="status-badge banned">Bị chặn</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </nz-table>
+  </div>
+</div>

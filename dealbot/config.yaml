@@ -1,0 +1,51 @@
+dry_run: true            # true = chỉ mô phỏng, không bấm đăng thật. Test xong mới đổi false
+niches:
+  - gia dụng
+  - mẹ và bé
+  - mỹ phẩm
+  - đồ công nghệ giá rẻ
+dealhunt_niches:          # group săn deal/săn sale (nhận bản tin mã giảm giá)
+  - săn sale shopee
+  - hội săn deal giá rẻ
+digest_windows:           # khung giờ vàng [giờ bắt đầu, phút, giờ kết thúc, phút]
+  - [11, 30, 12, 0]       # trước flash sale 12h
+  - [19, 30, 20, 0]       # trước flash sale 20h
+deals:
+  min_discount: 25       # % giảm tối thiểu
+  min_rating: 4.5
+  min_sold: 100
+  min_score: 60
+  top_per_day: 12
+posting:
+  active_hours: [8, 22]  # chỉ đăng trong khung giờ này
+  max_posts_per_account_per_day: 4
+  min_gap_minutes: [25, 70]        # khoảng nghỉ ngẫu nhiên giữa 2 bài (cùng 1 nick)
+  group_cooldown_hours: 48         # 1 group không đăng lại trong 48h
+  link_in_comment: true            # đăng ảnh+nhận xét, link để ở comment
+  warmup_days: 7                   # nick mới: chỉ tương tác, chưa đăng deal
+accounts:
+  - name: nick_a
+    cookie_file: cookies/nick_a.json
+    created_warm: true
+  - name: nick_b
+    cookie_file: cookies/nick_b.json
+    created_warm: true
+
+funnel:
+  telegram_invite: "https://t.me/kenh_san_deal_cua_ban"   # Link kênh Telegram kéo phễu từ Facebook
+  include_in_comment: true                                # Gắn lời kêu gọi tham gia ở comment (an toàn nhất)
+  include_in_caption: false                               # Có chèn vào cuối bài viết hay không
+  cta_text: "👉 Tham gia nhóm săn sale Telegram để nhận voucher sớm nhất: {invite_link}"
+
+telegram_channel:
+  enabled: true                                           # Đăng bài chính thức 100% an toàn lên Kênh Telegram riêng
+  channel_id: ""                                          # @kenh_cua_ban hoặc để trống lấy TELEGRAM_CHANNEL_ID từ .env
+  post_digests: true                                      # Đăng bản tin tổng hợp mã giảm giá 11h & 19h
+  post_top_deals: true                                    # Đăng các top deal giảm sâu nhất
+
+learning:
+  consecutive_fail_limit: 3                               # 3 lần lỗi liên tiếp -> tự động cooling_down group
+  cooldown_days_on_penalty: 7                             # Tạm dừng 7 ngày
+  success_bonus: 5                                        # Điểm cộng uy tín (+5) khi thành công
+  fail_penalty: 25                                        # Điểm trừ uy tín (-25) khi lỗi
+

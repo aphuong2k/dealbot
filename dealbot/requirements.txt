@@ -1,0 +1,7 @@
+anthropic>=0.40
+playwright>=1.47
+apscheduler>=3.10
+pyyaml
+requests
+python-dotenv
+pillow

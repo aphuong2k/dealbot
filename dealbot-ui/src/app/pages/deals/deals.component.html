@@ -1,0 +1,120 @@
+<div class="deals-page">
+  <!-- Title & Action Bar -->
+  <div class="page-header glass-card">
+    <div>
+      <h2 class="section-title">Kho Sản Phẩm & Deal Giảm Sâu</h2>
+      <p class="section-subtitle">Deal được tự động lọc theo ngưỡng % giảm giá, đánh giá rating và thuật toán chấm điểm tiềm năng.</p>
+    </div>
+    <div class="header-actions">
+      <button nz-button class="btn-shopee" (click)="triggerCrawl()" [nzLoading]="crawlLoading">
+        ⚡ Cào Deal Từ Accesstrade Ngay
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters Row -->
+  <div class="filters-card glass-card">
+    <div class="filter-item search-box">
+      <input nz-input placeholder="🔍 Tìm theo tên sản phẩm..." [(ngModel)]="searchQuery" (keyup.enter)="fetchDeals()" />
+    </div>
+    <div class="filter-item">
+      <nz-select [(ngModel)]="selectedNiche" (ngModelChange)="fetchDeals()" style="width: 200px;">
+        <nz-option *ngFor="let n of niches" [nzValue]="n.value" [nzLabel]="n.label"></nz-option>
+      </nz-select>
+    </div>
+    <div class="filter-item">
+      <nz-select [(ngModel)]="selectedStatus" (ngModelChange)="fetchDeals()" style="width: 190px;">
+        <nz-option *ngFor="let s of statuses" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
+      </nz-select>
+    </div>
+    <button nz-button class="btn-outline" (click)="fetchDeals()">
+      Lọc Dữ Liệu
+    </button>
+  </div>
+
+  <!-- Deals Table -->
+  <div class="table-container glass-card">
+    <nz-table
+      #dealsTable
+      [nzData]="deals"
+      [nzLoading]="loading"
+      [nzPageSize]="10"
+      nzShowPagination
+      nzShowSizeChanger
+    >
+      <thead>
+        <tr>
+          <th nzWidth="90px">Ảnh</th>
+          <th>Sản phẩm / Ngách</th>
+          <th nzWidth="150px">Giá Sale / Gốc</th>
+          <th nzWidth="120px">Đánh giá</th>
+          <th nzWidth="130px">Deal Score</th>
+          <th nzWidth="120px">Trạng thái</th>
+          <th nzWidth="100px">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let d of dealsTable.data">
+          <!-- Thumbnail with badge -->
+          <td>
+            <div class="deal-thumb-wrap">
+              <img [src]="d.image || 'https://via.placeholder.com/80'" alt="deal img">
+              <span class="badge-discount">-{{ d.discount | number:'1.0-0' }}%</span>
+            </div>
+          </td>
+
+          <!-- Title & Niche -->
+          <td>
+            <div class="deal-col-title">
+              <a [href]="d.url" target="_blank" class="prod-title">{{ d.title }}</a>
+              <div class="prod-tags">
+                <span class="niche-tag">{{ d.niche }}</span>
+                <span *ngIf="d.is_valid === 1" class="valid-tag">Còn hàng</span>
+                <span *ngIf="d.is_valid === 0" class="invalid-tag">Hết hàng</span>
+              </div>
+            </div>
+          </td>
+
+          <!-- Price & Discount -->
+          <td>
+            <div class="price-box">
+              <div class="sale-price">{{ d.price | number:'1.0-0' }}đ</div>
+              <div class="orig-price">{{ d.orig_price | number:'1.0-0' }}đ</div>
+            </div>
+          </td>
+
+          <!-- Rating & Sold -->
+          <td>
+            <div class="rating-box">
+              <span class="stars">⭐ {{ d.rating }}</span>
+              <span class="sold-count">Đã bán: {{ d.sold | number }}</span>
+            </div>
+          </td>
+
+          <!-- Score -->
+          <td>
+            <div class="score-display">
+              <span class="score-pill" [style.background-color]="getScoreColor(d.score) + '22'" [style.color]="getScoreColor(d.score)">
+                {{ d.score }} / 100
+              </span>
+            </div>
+          </td>
+
+          <!-- Status -->
+          <td>
+            <span *ngIf="d.status === 'new'" class="status-pill status-new">Mới cào</span>
+            <span *ngIf="d.status === 'planned'" class="status-pill status-planned">Đã lên lịch</span>
+            <span *ngIf="d.status === 'expired'" class="status-pill status-expired">Hết hạn</span>
+          </td>
+
+          <!-- Actions -->
+          <td>
+            <a [href]="d.aff_url" target="_blank" class="link-aff-btn" nz-tooltip nzTooltipTitle="Mở link affiliate mua hàng">
+              Mua ↗
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </nz-table>
+  </div>
+</div>

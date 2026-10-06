@@ -1,0 +1,45 @@
+# ======================================================================
+# DEALBOT .GITIGNORE - BẢO MẬT & TỐI ƯU DUNG LƯỢNG REPOSITORY
+# ======================================================================
+
+# 1. BẢO MẬT TUYỆT ĐỐI (Không bao giờ đẩy token và cookie lên Git)
+.env
+*.env
+cookies/
+dealbot/cookies/
+*.json.cookie
+
+# 2. Cơ sở dữ liệu SQLite (Tránh xung đột nhị phân khi chạy trên nhiều máy)
+# Nếu bạn muốn đồng bộ dữ liệu qua máy khác, hãy xem hướng dẫn backup ở README
+*.db
+*.db-journal
+*.sqlite3
+dealbot/dealbot.db
+
+# 3. File sinh tự động & Cache Python
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.log
+scratch/
+
+# 4. Ảnh sản phẩm & thẻ tổng hợp (Bot sẽ tự tải và tự vẽ lại)
+images/
+dealbot/images/
+*.jpg
+*.png
+
+# 5. File xuất duyệt thủ công (Tùy chọn: có thể bỏ qua để tránh ghi đè)
+groups_review.csv
+dealbot/groups_review.csv
+
+# 6. Frontend Angular & Node Modules
+node_modules/
+dealbot-ui/node_modules/
+dealbot-ui/dist/
+dealbot-ui/.angular/
+dealbot-ui/.angular/cache/
+dist/
+tmp/
+.vscode/

@@ -1,0 +1,158 @@
+<div class="posts-page">
+  <!-- Page Header -->
+  <div class="page-header glass-card">
+    <div>
+      <h2 class="section-title">Lịch Trình Đăng Bài & Bình Luận Sub-ID</h2>
+      <p class="section-subtitle">Tự động phân bổ giờ ngẫu nhiên trong khung hoạt động, theo dõi chuyển đổi đơn hàng qua Sub-ID.</p>
+    </div>
+    <div class="header-actions">
+      <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="planLoading">
+        🗓 Lên Lịch Hôm Nay (07:30)
+      </button>
+      <button nz-button class="btn-shopee" (click)="triggerRunDue()" [nzLoading]="runDueLoading">
+        ⚡ Chạy Đăng Các Bài Đến Giờ
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters Row -->
+  <div class="filters-card glass-card">
+    <div class="filter-item">
+      <nz-select [(ngModel)]="selectedStatus" (ngModelChange)="fetchPosts()" style="width: 220px;">
+        <nz-option *ngFor="let s of statusOptions" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
+      </nz-select>
+    </div>
+    <div class="filter-item">
+      <nz-select [(ngModel)]="selectedAccount" (ngModelChange)="fetchPosts()" style="width: 170px;">
+        <nz-option *ngFor="let a of accountOptions" [nzValue]="a.value" [nzLabel]="a.label"></nz-option>
+      </nz-select>
+    </div>
+    <button nz-button class="btn-outline" (click)="fetchPosts()">
+      Làm Mới Danh Sách
+    </button>
+  </div>
+
+  <!-- Posts Table -->
+  <div class="table-container glass-card">
+    <nz-table
+      #postsTable
+      [nzData]="posts"
+      [nzLoading]="loading"
+      [nzPageSize]="10"
+      nzShowPagination
+      nzShowSizeChanger
+    >
+      <thead>
+        <tr>
+          <th nzWidth="80px">ID</th>
+          <th nzWidth="150px">Giờ Dự Kiến</th>
+          <th nzWidth="110px">Tài Khoản</th>
+          <th>Nhóm Đăng / Loại</th>
+          <th>Sub-ID Theo Dõi</th>
+          <th nzWidth="130px">Trạng Thái Bài</th>
+          <th nzWidth="150px">Bình Luận Link</th>
+          <th nzWidth="90px">Xem</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let p of postsTable.data">
+          <!-- ID -->
+          <td class="font-mono">#{{ p.id }}</td>
+
+          <!-- Scheduled At -->
+          <td>
+            <div class="time-col">
+              <span class="time-main">{{ p.scheduled_at * 1000 | date:'HH:mm' }}</span>
+              <span class="time-sub">{{ p.scheduled_at * 1000 | date:'dd/MM/yyyy' }}</span>
+            </div>
+          </td>
+
+          <!-- Account -->
+          <td>
+            <span class="acc-tag">{{ p.account }}</span>
+          </td>
+
+          <!-- Group & Kind -->
+          <td>
+            <div class="group-info-col">
+              <a [href]="p.group_url" target="_blank" class="group-name-link">
+                {{ p.group_name || p.group_url }}
+              </a>
+              <span class="post-kind-tag" [ngClass]="p.kind === 'digest' ? 'kind-digest' : 'kind-deal'">
+                {{ p.kind === 'digest' ? '🎟 Bản Tin' : '🛒 Bài Deal' }}
+              </span>
+            </div>
+          </td>
+
+          <!-- Sub-ID -->
+          <td>
+            <div class="subid-box" [title]="p.sub_id">
+              {{ p.sub_id || 'none' }}
+            </div>
+          </td>
+
+          <!-- Status -->
+          <td>
+            <span *ngIf="p.status === 'queued'" class="status-badge queued">⏳ Đang chờ</span>
+            <span *ngIf="p.status === 'done'" class="status-badge done">✅ Đã đăng</span>
+            <span *ngIf="p.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
+            <span *ngIf="p.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
+            <span *ngIf="p.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
+          </td>
+
+          <!-- Comment Status -->
+          <td>
+            <div class="comment-status-col">
+              <span *ngIf="p.comment_status === 'done'" class="text-success">💬 Đã comment</span>
+              <span *ngIf="p.comment_status === 'pending_approval'" class="text-warning">⏳ Hẹn retry duyệt</span>
+              <span *ngIf="p.comment_status === 'none'" class="text-muted">Không có</span>
+              <span *ngIf="p.comment_status === 'failed'" class="text-danger">Lỗi comment</span>
+            </div>
+          </td>
+
+          <!-- Action -->
+          <td>
+            <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
+              Chi tiết
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </nz-table>
+  </div>
+
+  <!-- Preview Modal -->
+  <nz-modal
+    [(nzVisible)]="previewModalVisible"
+    nzTitle="Chi Tiết Bài Viết Lên Lịch"
+    (nzOnCancel)="closePreview()"
+    [nzFooter]="null"
+    nzWidth="600px"
+  >
+    <ng-container *nzModalContent>
+      <div *ngIf="selectedPostForPreview" class="preview-modal-body">
+        <div class="preview-meta">
+          <div><b>Tài khoản:</b> {{ selectedPostForPreview.account }}</div>
+          <div><b>Thời gian đăng:</b> {{ selectedPostForPreview.scheduled_at * 1000 | date:'HH:mm dd/MM/yyyy' }}</div>
+          <div><b>Nhóm:</b> {{ selectedPostForPreview.group_url }}</div>
+          <div><b>Sub-ID:</b> <code>{{ selectedPostForPreview.sub_id }}</code></div>
+        </div>
+
+        <div class="preview-section">
+          <h4>Nội dung Caption:</h4>
+          <div class="caption-box">{{ selectedPostForPreview.caption }}</div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.comment" class="preview-section">
+          <h4>Bình luận gắn Link Affiliate & Phễu Telegram:</h4>
+          <div class="comment-box">{{ selectedPostForPreview.comment }}</div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.error" class="preview-section text-danger">
+          <h4>Lỗi ghi nhận:</h4>
+          <div>{{ selectedPostForPreview.error }}</div>
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
+</div>

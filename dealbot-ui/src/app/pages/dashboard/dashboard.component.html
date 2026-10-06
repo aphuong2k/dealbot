@@ -1,0 +1,218 @@
+<div class="dashboard-container">
+  <!-- Top Banner & Quick Controls -->
+  <div class="header-card">
+    <div class="header-content">
+      <div>
+        <div class="badge-row">
+          <span class="bot-badge active">
+            <span class="pulse-indicator bg-emerald"></span> Hệ Thống Tự Động 95%
+          </span>
+          <span class="bot-badge" [ngClass]="stats?.dry_run ? 'bg-amber' : 'bg-green'">
+            {{ stats?.dry_run ? '🧪 Chế độ Dry Run (Mô phỏng)' : '🚀 Chế độ Đăng Thật' }}
+          </span>
+        </div>
+        <h1 class="page-title">Trung Tâm Điều Hành Dealbot</h1>
+        <p class="page-subtitle">Quản trị chu kỳ săn deal tự động, phân bổ nhóm Facebook và phát sóng Telegram Channel.</p>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="actions-group">
+        <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="actionLoading['plan']">
+          🗓 Lập Lịch Ngày (7h30)
+        </button>
+        <button nz-button class="btn-shopee" (click)="triggerPost()" [nzLoading]="actionLoading['post']">
+          ⚡ Đăng Bài Ngay (5m)
+        </button>
+        <button nz-button class="btn-outline" (click)="triggerCrawl()" [nzLoading]="actionLoading['crawl']">
+          🛒 Cào Deal (3h)
+        </button>
+        <button nz-button class="btn-outline" (click)="triggerWarmup()" [nzLoading]="actionLoading['warmup']">
+          ☕ Nuôi Nick (Warmup)
+        </button>
+        <button nz-button class="btn-telegram" (click)="triggerTelegramDigest()" [nzLoading]="actionLoading['tg']">
+          📢 Đăng Telegram Channel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <nz-spin [nzSpinning]="loading">
+    <!-- 4 Stats Cards -->
+    <div class="metrics-grid">
+      <!-- Card 1: Deals -->
+      <div class="stat-card stat-shopee">
+        <div class="stat-header">
+          <span class="stat-label">Kho Deal Săn Được</span>
+          <span class="stat-icon">🛒</span>
+        </div>
+        <div class="stat-value">{{ stats?.deals?.total || 0 }}</div>
+        <div class="stat-sub">
+          <span class="text-success">+{{ stats?.deals?.new || 0 }} deal mới</span> sẵn sàng lên lịch
+        </div>
+        <div class="stat-action-link">
+          <a routerLink="/deals">Quản lý kho deal &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Card 2: Groups -->
+      <div class="stat-card stat-purple">
+        <div class="stat-header">
+          <span class="stat-label">Hội Nhóm Facebook</span>
+          <span class="stat-icon">👥</span>
+        </div>
+        <div class="stat-value">{{ stats?.groups?.active || 0 }}</div>
+        <div class="stat-sub">
+          <span>{{ stats?.groups?.candidate || 0 }} chờ duyệt</span> •
+          <span class="text-danger">{{ stats?.groups?.cooling_down || 0 }} phạt (cooling down)</span>
+        </div>
+        <div class="stat-action-link">
+          <a routerLink="/groups">Xem danh sách nhóm &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Card 3: Posts Today -->
+      <div class="stat-card stat-cyan">
+        <div class="stat-header">
+          <span class="stat-label">Bài Đăng Hôm Nay</span>
+          <span class="stat-icon">📊</span>
+        </div>
+        <div class="stat-value">{{ stats?.posts_today?.total || 0 }}</div>
+        <div class="stat-sub">
+          <span class="text-success">{{ stats?.posts_today?.done || 0 }} thành công</span> •
+          <span class="text-warning">{{ stats?.posts_today?.pending_approval || 0 }} chờ duyệt</span> •
+          <span class="text-muted">{{ stats?.posts_today?.queued || 0 }} chờ giờ</span>
+        </div>
+        <div class="stat-action-link">
+          <a routerLink="/posts">Lịch trình chi tiết &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Card 4: Accounts -->
+      <div class="stat-card stat-emerald">
+        <div class="stat-header">
+          <span class="stat-label">Tài Khoản Phụ Trách</span>
+          <span class="stat-icon">🛡️</span>
+        </div>
+        <div class="accounts-summary">
+          <div *ngFor="let acc of stats?.accounts" class="acc-row">
+            <span class="acc-name">{{ acc.name }}</span>
+            <span class="acc-pill" [ngClass]="acc.status === 'healthy' ? 'pill-healthy' : 'pill-paused'">
+              {{ acc.status === 'healthy' ? 'Khỏe mạnh (' + acc.posts_today + '/' + acc.max_posts_day + ' bài)' : 'Tạm dừng (' + acc.paused_hours_left + 'h còn lại)' }}
+            </span>
+          </div>
+        </div>
+        <div class="stat-action-link">
+          <a routerLink="/settings">Quản lý cookie & nick &rarr;</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Second Row: Today's Schedule Overview & Top Deals -->
+    <div class="content-columns">
+      <!-- Column 1: Top Rated Deals -->
+      <div class="glass-card column-card">
+        <div class="card-title-bar">
+          <div>
+            <h3>🔥 Top Deals Giảm Sâu & Điểm Cao Nhất</h3>
+            <p class="sub-text">Được AI lọc theo % giảm giá, đánh giá sao, số lượng bán và hoa hồng</p>
+          </div>
+          <button nz-button nzSize="small" class="btn-outline" routerLink="/deals">Xem tất cả</button>
+        </div>
+
+        <div class="deals-mini-list">
+          <div *ngFor="let deal of stats?.top_deals" class="deal-mini-item">
+            <div class="deal-img-box">
+              <img [src]="deal.image || 'https://via.placeholder.com/80'" alt="Deal thumbnail">
+              <span class="mini-discount">-{{ deal.discount | number:'1.0-0' }}%</span>
+            </div>
+            <div class="deal-mini-info">
+              <a [href]="deal.aff_url" target="_blank" class="deal-title">{{ deal.title }}</a>
+              <div class="deal-price-line">
+                <span class="deal-price">{{ deal.price | number:'1.0-0' }}đ</span>
+                <span class="deal-orig">{{ deal.orig_price | number:'1.0-0' }}đ</span>
+                <span class="deal-rating">⭐ {{ deal.rating }} ({{ deal.sold | number }} đã bán)</span>
+              </div>
+            </div>
+            <div class="deal-score-badge">
+              <div class="score-num">{{ deal.score }}</div>
+              <div class="score-label">Điểm Deal</div>
+            </div>
+          </div>
+
+          <div *ngIf="!stats?.top_deals || stats?.top_deals?.length === 0" class="empty-state">
+            Chưa có deal nào trong hôm nay. Bấm <b>"Cào Deal (3h)"</b> để lấy dữ liệu mới nhất.
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2: Daily Workflow Guide -->
+      <div class="glass-card column-card">
+        <div class="card-title-bar">
+          <div>
+            <h3>⏱ Vòng Lặp Vận Hành Hàng Ngày</h3>
+            <p class="sub-text">Lịch trình tự động hoá 95% của Dealbot</p>
+          </div>
+          <button nz-button nzSize="small" class="btn-outline" (click)="loadStats()">Làm mới</button>
+        </div>
+
+        <div class="timeline-box">
+          <div class="timeline-step">
+            <div class="step-time">Thứ 2, 05:00</div>
+            <div class="step-body">
+              <div class="step-title">AI Tìm Nhóm Ứng Viên Mới</div>
+              <div class="step-desc">Claude AI sinh từ khóa + Google CSE tìm link group, xuất file duyệt.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step">
+            <div class="step-time">Mỗi 30 phút</div>
+            <div class="step-body">
+              <div class="step-title">Gán Nick & Hồi Phục Group</div>
+              <div class="step-desc">Cập nhật nhóm đã duyệt, gán cố định cho nick, mở phạt nhóm cooling-down sau 7 ngày.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step">
+            <div class="step-time">Mỗi 3 tiếng</div>
+            <div class="step-body">
+              <div class="step-title">Cào Deal & Chấm Điểm</div>
+              <div class="step-desc">Lọc ngưỡng giảm giá, đánh giá sao, tải ảnh sản phẩm & vẽ huy hiệu giảm giá.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step highlight">
+            <div class="step-time">07:30 Sáng</div>
+            <div class="step-body">
+              <div class="step-title">Lên Lịch Trong Ngày</div>
+              <div class="step-desc">Ghép top deal với group uy tín, AI viết caption, gắn Sub-ID và CTA phễu Telegram.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step">
+            <div class="step-time">Mỗi 5 phút</div>
+            <div class="step-body">
+              <div class="step-title">Đăng Bài & Retry Comment</div>
+              <div class="step-desc">Đăng bài đến giờ, tự động retry comment sau 45 phút nếu bài chờ admin duyệt.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step">
+            <div class="step-time">11h15 & 19h15</div>
+            <div class="step-body">
+              <div class="step-title">Phát Sóng Telegram Channel</div>
+              <div class="step-desc">Gửi ảnh thẻ tổng hợp mã giảm giá và voucher khung giờ vàng lên kênh riêng.</div>
+            </div>
+          </div>
+
+          <div class="timeline-step">
+            <div class="step-time">22:30 Đêm</div>
+            <div class="step-body">
+              <div class="step-title">Báo Cáo Tổng Kết Ngày</div>
+              <div class="step-desc">Thống kê số bài đăng, tỷ lệ thành công, kiểm tra sức khỏe 2 nick qua Telegram.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nz-spin>
+</div>

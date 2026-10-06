@@ -1,0 +1,134 @@
+<div class="coupons-page">
+  <!-- Header Card -->
+  <div class="page-header glass-card">
+    <div>
+      <h2 class="section-title">Kho Mã Giảm Giá & Sự Kiện Lớn (Vouchers & Mega Sales)</h2>
+      <p class="section-subtitle">Dữ liệu nguồn tự động từ Accesstrade kết hợp lịch sự kiện cố định (9.9, 10.10, 11.11, Flash sale) để AI tổng hợp bản tin.</p>
+    </div>
+    <div class="header-actions">
+      <button nz-button class="btn-outline" (click)="openAddEvent()">
+        ➕ Khai Báo Sự Kiện Mới
+      </button>
+      <button nz-button class="btn-primary" (click)="triggerRefresh()">
+        🔄 Cập Nhật Mã Mới
+      </button>
+      <button nz-button class="btn-telegram" (click)="broadcastTelegram()" [nzLoading]="broadcastLoading">
+        📢 Đăng Kênh Telegram Ngay
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs: Events vs Coupons -->
+  <div class="content-tabs glass-card">
+    <nz-tabset>
+      <!-- Tab 1: Mega Events (events.yaml) -->
+      <nz-tab nzTitle="🎉 Sự Kiện Lớn (events.yaml)">
+        <div class="tab-desc">
+          Các đợt siêu sale cố định gắn link affiliate của bạn. AI sẽ ưu tiên đưa các sự kiện này vào bản tin hàng ngày.
+        </div>
+        <div class="events-grid">
+          <div *ngFor="let ev of events; let idx = index" class="event-card">
+            <div class="event-header">
+              <span class="merchant-badge">{{ ev.merchant | uppercase }}</span>
+              <button class="delete-btn" (click)="deleteEvent(idx)" title="Xóa sự kiện">✕</button>
+            </div>
+            <h4 class="event-title">{{ ev.title }}</h4>
+            <p class="event-detail">{{ ev.detail || 'Không có mô tả chi tiết' }}</p>
+            <div class="event-times">
+              <span>Bắt đầu: {{ ev.start }}</span>
+              <span>Kết thúc: {{ ev.end }}</span>
+            </div>
+            <div class="event-link-row">
+              <a [href]="ev.link" target="_blank" class="event-link">Mở link aff ↗</a>
+            </div>
+          </div>
+
+          <div *ngIf="events.length === 0" class="empty-state">
+            Chưa có sự kiện nào. Hãy bấm <b>"Khai Báo Sự Kiện Mới"</b> để thêm đợt sale sắp tới!
+          </div>
+        </div>
+      </nz-tab>
+
+      <!-- Tab 2: Live Coupons from API -->
+      <nz-tab nzTitle="🎟 Danh Sách Mã Accesstrade">
+        <div class="tab-desc">
+          Mã giảm giá cào từ API network còn hạn sử dụng, tự động xếp theo thời gian hết hạn gần nhất.
+        </div>
+        <nz-table #couponsTable [nzData]="coupons" [nzLoading]="loading" [nzPageSize]="10" nzShowPagination>
+          <thead>
+            <tr>
+              <th nzWidth="130px">Mã Code</th>
+              <th>Tiêu đề / Điều kiện</th>
+              <th nzWidth="150px">Sàn</th>
+              <th nzWidth="180px">Thời Hạn</th>
+              <th nzWidth="120px">Link Nhận</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of couponsTable.data">
+              <td>
+                <span class="code-pill">{{ c.code || 'KHÔNG CẦN MÃ' }}</span>
+              </td>
+              <td>
+                <div class="coupon-title-col">
+                  <div class="c-title">{{ c.title }}</div>
+                  <div class="c-detail">{{ c.detail }}</div>
+                </div>
+              </td>
+              <td>
+                <span class="merchant-tag">{{ c.merchant }}</span>
+              </td>
+              <td>
+                <span class="expiry-text">Hết hạn: {{ c.end_at * 1000 | date:'HH:mm dd/MM' }}</span>
+              </td>
+              <td>
+                <a [href]="c.aff_url || c.url" target="_blank" class="aff-link">Lấy mã ↗</a>
+              </td>
+            </tr>
+          </tbody>
+        </nz-table>
+      </nz-tab>
+    </nz-tabset>
+  </div>
+
+  <!-- Modal Add Event -->
+  <nz-modal
+    [(nzVisible)]="addEventModalVisible"
+    nzTitle="Khai Báo Sự Kiện Siêu Sale Mới"
+    (nzOnCancel)="addEventModalVisible = false"
+    (nzOnOk)="saveNewEvent()"
+    nzOkText="Lưu Sự Kiện"
+    nzCancelText="Hủy"
+  >
+    <ng-container *nzModalContent>
+      <div class="modal-form">
+        <div class="form-group">
+          <label>Tên sự kiện / Chiến dịch:</label>
+          <input nz-input [(ngModel)]="newEvent.title" placeholder="VD: Siêu sale 11.11, Flash sale 12h..." />
+        </div>
+        <div class="form-group">
+          <label>Sàn thương mại:</label>
+          <input nz-input [(ngModel)]="newEvent.merchant" placeholder="shopee" />
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label>Thời gian bắt đầu (ISO):</label>
+            <input nz-input [(ngModel)]="newEvent.start" placeholder="YYYY-MM-DDTHH:MM:SS" />
+          </div>
+          <div class="form-group flex-1">
+            <label>Thời gian kết thúc (ISO):</label>
+            <input nz-input [(ngModel)]="newEvent.end" placeholder="YYYY-MM-DDTHH:MM:SS" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Mô tả ngắn voucher/ưu đãi:</label>
+          <input nz-input [(ngModel)]="newEvent.detail" placeholder="VD: Voucher 500k, Freeship đơn 0đ..." />
+        </div>
+        <div class="form-group">
+          <label>Link Affiliate (đã dán ID từ network):</label>
+          <input nz-input [(ngModel)]="newEvent.link" placeholder="https://shopee.vn/m/11-11?aff=..." />
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
+</div>

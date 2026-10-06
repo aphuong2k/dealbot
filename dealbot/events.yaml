@@ -1,0 +1,13 @@
+# Sự kiện cố định bạn tự cập nhật (link aff dán sẵn từ network). Ví dụ:
+- title: "Flash sale 12h trưa mỗi ngày"
+  merchant: shopee
+  start: "2026-10-01T00:00:00"
+  end: "2026-12-31T23:59:00"
+  detail: "Khung giờ săn sale 12h, 0h, 20h"
+  link: "https://shopee.vn/flash_sale?aff=DAN_LINK_AFF"
+- title: "Siêu sale 10.10"
+  merchant: shopee
+  start: "2026-10-08T00:00:00"
+  end: "2026-10-11T00:00:00"
+  detail: "Voucher đến 500k, freeship"
+  link: "https://shopee.vn/m/10-10?aff=DAN_LINK_AFF"

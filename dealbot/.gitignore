@@ -1,0 +1,9 @@
+# Security & Secrets
+.env
+cookies/
+*.db
+*.db-journal
+images/
+__pycache__/
+*.log
+groups_review.csv

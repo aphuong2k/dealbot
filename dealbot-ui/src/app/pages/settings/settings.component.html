@@ -1,0 +1,164 @@
+<div class="settings-page">
+  <!-- Page Header -->
+  <div class="page-header glass-card">
+    <div>
+      <h2 class="section-title">Cấu Hình Hệ Thống & Quản Lý 2 Nick</h2>
+      <p class="section-subtitle">Tùy biến các tham số an toàn, thời gian giãn cách, cơ chế kéo phễu và tích hợp Telegram.</p>
+    </div>
+    <div class="header-actions">
+      <button nz-button class="btn-primary" (click)="saveConfig()" [nzLoading]="saveLoading">
+        💾 Lưu Cấu Hình config.yaml
+      </button>
+    </div>
+  </div>
+
+  <nz-spin [nzSpinning]="loading">
+    <div *ngIf="config" class="settings-grid">
+      <!-- Section 1: Bot Mode & Limits -->
+      <div class="settings-card glass-card">
+        <h3 class="card-heading">⚙️ Chế Độ Hoạt Động & Giới Hạn</h3>
+        
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Chế độ Dry Run (Mô phỏng)</span>
+            <span class="setting-desc">Khi bật, bot chỉ in log và chụp thử nghiệm, không bấm nút Đăng bài thật.</span>
+          </div>
+          <nz-switch [(ngModel)]="config.dry_run" nzCheckedChildren="Mô phỏng" nzUnCheckedChildren="Đăng thật"></nz-switch>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Số bài tối đa / nick / ngày</span>
+            <span class="setting-desc">Khuyên dùng 3–5 bài để an toàn nhất cho tài khoản Facebook.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.posting.max_posts_per_account_per_day" style="width: 100px;" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Thời gian giãn cách giữa 2 bài (phút)</span>
+            <span class="setting-desc">Khoảng nghỉ ngẫu nhiên [phút tối thiểu, phút tối đa].</span>
+          </div>
+          <div class="gap-inputs">
+            <input nz-input type="number" [(ngModel)]="config.posting.min_gap_minutes[0]" style="width: 70px;" />
+            <span>đến</span>
+            <input nz-input type="number" [(ngModel)]="config.posting.min_gap_minutes[1]" style="width: 70px;" />
+            <span>phút</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Giãn cách đăng lại cùng 1 group (giờ)</span>
+            <span class="setting-desc">Mặc định 48h để không gây khó chịu cho thành viên và admin nhóm.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.posting.group_cooldown_hours" style="width: 100px;" />
+        </div>
+      </div>
+
+      <!-- Section 2: Accounts & Cookie Safety -->
+      <div class="settings-card glass-card">
+        <div class="card-header-flex">
+          <h3 class="card-heading">🛡️ Tài Khoản Facebook & Cookie</h3>
+          <button nz-button nzSize="small" class="btn-outline" (click)="triggerWarmup()" [nzLoading]="warmupLoading">
+            ☕ Nuôi Nick Ngay (Warmup)
+          </button>
+        </div>
+
+        <p class="setting-desc">
+          Mỗi group chỉ do 1 nick phụ trách để tránh lộ pattern. Cookie export từ extension Cookie-Editor dạng JSON.
+        </p>
+
+        <div class="accounts-list">
+          <div *ngFor="let acc of config.accounts" class="acc-config-box">
+            <div class="acc-config-title">
+              <b>{{ acc.name }}</b>
+              <span class="acc-cookie-path">{{ acc.cookie_file }}</span>
+            </div>
+            <div class="acc-warm-toggle">
+              <label>Đã nuôi cứng (created_warm):</label>
+              <nz-switch [(ngModel)]="acc.created_warm"></nz-switch>
+            </div>
+          </div>
+        </div>
+
+        <div class="checkpoint-notice">
+          ℹ️ Nếu nick dính checkpoint đăng xuất, bot sẽ tự động tạm dừng nick đó 3 ngày và thông báo về Telegram. Nick còn lại vẫn hoạt động bình thường.
+        </div>
+      </div>
+
+      <!-- Section 3: Telegram Integration & Funnel -->
+      <div class="settings-card glass-card">
+        <div class="card-header-flex">
+          <h3 class="card-heading">📢 Phễu Khách & Kênh Telegram Riêng</h3>
+          <button nz-button nzSize="small" class="btn-telegram" (click)="testTelegram()" [nzLoading]="testTelegramLoading">
+            🔔 Test Gửi Thông Báo
+          </button>
+        </div>
+
+        <div class="form-group-item">
+          <label>Link mời Kênh/Nhóm Telegram của bạn (kéo phễu):</label>
+          <input nz-input [(ngModel)]="config.funnel.telegram_invite" placeholder="https://t.me/kenh_san_deal_cua_ban" />
+        </div>
+
+        <div class="form-group-item">
+          <label>Câu kêu gọi hành động (CTA) gắn cuối comment/bài viết:</label>
+          <textarea nz-input rows="2" [(ngModel)]="config.funnel.cta_text"></textarea>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Gắn link phễu Telegram ở bình luận</span>
+            <span class="setting-desc">Khuyên dùng: để ở comment giúp bài đăng Facebook tự nhiên hơn.</span>
+          </div>
+          <nz-switch [(ngModel)]="config.funnel.include_in_comment"></nz-switch>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Bật phát sóng Kênh Telegram chính thức</span>
+            <span class="setting-desc">Tự động phát bản tin mã giảm giá và top deals lên kênh của bạn.</span>
+          </div>
+          <nz-switch [(ngModel)]="config.telegram_channel.enabled"></nz-switch>
+        </div>
+      </div>
+
+      <!-- Section 4: Auto-learning Penalties -->
+      <div class="settings-card glass-card">
+        <h3 class="card-heading">🧠 Thuật Toán Tự Học & Quản Trị Group</h3>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Ngưỡng lỗi liên tiếp để phạt (lần)</span>
+            <span class="setting-desc">Nếu dính lỗi đăng hoặc bị từ chối 3 lần liên tiếp, tự động cooling down.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.learning.consecutive_fail_limit" style="width: 100px;" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Thời gian phạt tạm dừng (ngày)</span>
+            <span class="setting-desc">Sau 7 ngày, bot sẽ tự động cho nhóm thêm cơ hội thử lại.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.learning.cooldown_days_on_penalty" style="width: 100px;" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Điểm thưởng mỗi lần đăng duyệt thành công</span>
+            <span class="setting-desc">Mặc định: +5 điểm uy tín.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.learning.success_bonus" style="width: 100px;" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Điểm phạt mỗi lần lỗi</span>
+            <span class="setting-desc">Mặc định: -25 điểm uy tín.</span>
+          </div>
+          <input nz-input type="number" [(ngModel)]="config.learning.fail_penalty" style="width: 100px;" />
+        </div>
+      </div>
+    </div>
+  </nz-spin>
+</div>

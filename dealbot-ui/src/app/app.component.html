@@ -1,0 +1,95 @@
+<nz-layout class="app-layout">
+  <!-- Left Sidebar -->
+  <nz-sider
+    nzCollapsible
+    [(nzCollapsed)]="isCollapsed"
+    [nzWidth]="250"
+    [nzCollapsedWidth]="80"
+    [nzTrigger]="null"
+    class="app-sider"
+  >
+    <!-- Brand / Logo -->
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛒</div>
+      <div *ngIf="!isCollapsed" class="logo-text">
+        <span class="logo-title">DEALBOT</span>
+        <span class="logo-badge">STUDIO v2.0</span>
+      </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <ul nz-menu nzTheme="dark" nzMode="inline" class="side-menu">
+      <li nz-menu-item routerLink="/dashboard" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">📊</span>
+        <span>Tổng Quan (Dashboard)</span>
+      </li>
+
+      <li nz-menu-item routerLink="/deals" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">🛍️</span>
+        <span>Kho Deal Sản Phẩm</span>
+      </li>
+
+      <li nz-menu-item routerLink="/groups" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">👥</span>
+        <span>Hội Nhóm Facebook</span>
+      </li>
+
+      <li nz-menu-item routerLink="/posts" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">🗓️</span>
+        <span>Lịch Trình Đăng Bài</span>
+      </li>
+
+      <li nz-menu-item routerLink="/coupons" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">🎟️</span>
+        <span>Mã Sàn & Sự Kiện</span>
+      </li>
+
+      <li nz-menu-item routerLink="/settings" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">⚙️</span>
+        <span>Cấu Hình & 2 Nick</span>
+      </li>
+    </ul>
+
+    <!-- Bottom Account Status in Sidebar -->
+    <div *ngIf="!isCollapsed" class="sidebar-footer">
+      <div class="footer-card">
+        <div class="footer-title">Nick Phụ Trách:</div>
+        <div class="footer-nick">👤 <b>nick_a</b> & <b>nick_b</b></div>
+        <div class="footer-strategy">Mỗi group 1 nick cố định</div>
+      </div>
+    </div>
+  </nz-sider>
+
+  <!-- Main Right Layout -->
+  <nz-layout class="main-layout">
+    <!-- Top Header -->
+    <nz-header class="app-header">
+      <div class="header-left">
+        <button class="collapse-trigger" (click)="isCollapsed = !isCollapsed">
+          {{ isCollapsed ? '☰' : '⮜' }}
+        </button>
+        <div class="live-clock">{{ currentTime }}</div>
+      </div>
+
+      <div class="header-right">
+        <!-- API Online Status Indicator -->
+        <div class="status-indicator-box">
+          <span class="indicator-dot" [ngClass]="apiOnline ? 'dot-online' : 'dot-offline'"></span>
+          <span class="indicator-text">{{ apiOnline ? 'API 8000: Đang chạy' : 'API: Mất kết nối' }}</span>
+        </div>
+
+        <!-- Dry Run Mode Badge -->
+        <span class="header-pill" [ngClass]="dryRun ? 'pill-dry' : 'pill-live'">
+          {{ dryRun ? '🧪 DRY RUN' : '⚡ LIVE POST' }}
+        </span>
+      </div>
+    </nz-header>
+
+    <!-- Page Content Container -->
+    <nz-content class="app-content">
+      <div class="content-wrapper">
+        <router-outlet></router-outlet>
+      </div>
+    </nz-content>
+  </nz-layout>
+</nz-layout>

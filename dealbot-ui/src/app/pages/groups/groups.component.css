@@ -1,0 +1,160 @@
+.groups-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.section-title {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+.tabs-card {
+  padding: 16px 20px 10px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.table-container {
+  overflow-x: auto;
+  padding: 10px 20px 20px;
+}
+
+.group-col-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-link {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+.group-link:hover {
+  color: #38bdf8;
+}
+
+.group-url-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.badge-dealhunt {
+  background: rgba(238, 77, 45, 0.15);
+  color: #ff5722;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.badge-niche {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.priority-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.priority-header {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.score-bold {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  color: #fff;
+}
+
+.score-max {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-approve {
+  background: #10b981;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.btn-approve:hover {
+  background: #059669;
+}
+
+.btn-skip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 4px;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.status-badge.joined {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.status-badge.cooling {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.status-badge.banned {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.text-success { color: #10b981; }
+.text-danger { color: #ef4444; }
+.text-muted { color: #64748b; }
