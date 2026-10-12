@@ -187,4 +187,79 @@ export class ApiService {
   postDigestTelegram(): Observable<any> {
     return this.http.post(`${this.baseUrl}/telegram/post-digest`, {});
   }
+
+  getAccountsCookies(): Observable<AccountCookieInfo[]> {
+    return this.http.get<AccountCookieInfo[]>(`${this.baseUrl}/accounts/cookies`);
+  }
+
+  getAccountCookie(accountName: string): Observable<AccountCookieInfo> {
+    return this.http.get<AccountCookieInfo>(`${this.baseUrl}/accounts/${accountName}/cookie`);
+  }
+
+  saveAccountCookie(accountName: string, cookieData: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/accounts/${accountName}/cookie`, { cookie_data: cookieData });
+  }
+
+  deleteAccountCookie(accountName: string): Observable<any> {
+    return this.http.delete(`${this.baseUrl}/accounts/${accountName}/cookie`);
+  }
+
+  testFacebookConnect(accountName: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/accounts/${accountName}/test-connect`, {});
+  }
+
+  // --- SHOPEE AFFILIATE & CATEGORIES ---
+  getShopeeCookie(): Observable<ShopeeCookieInfo> {
+    return this.http.get<ShopeeCookieInfo>(`${this.baseUrl}/shopee/cookie`);
+  }
+
+  saveShopeeCookie(cookieData: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/shopee/cookie`, { cookie_data: cookieData });
+  }
+
+  deleteShopeeCookie(): Observable<any> {
+    return this.http.delete(`${this.baseUrl}/shopee/cookie`);
+  }
+
+  testShopeeConnect(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/shopee/test-connect`, {});
+  }
+
+  getShopeeCategories(): Observable<{ categories: ShopeeCategory[]; total: number }> {
+    return this.http.get<{ categories: ShopeeCategory[]; total: number }>(`${this.baseUrl}/shopee/categories`);
+  }
+
+  syncShopeeNiches(niches: string[]): Observable<any> {
+    return this.http.post(`${this.baseUrl}/shopee/sync-niches`, { niches });
+  }
 }
+
+export interface AccountCookieInfo {
+  account: string;
+  cookie_file: string;
+  exists: boolean;
+  count: number;
+  c_user?: string | null;
+  has_xs: boolean;
+  updated_at?: number | null;
+  size_bytes: number;
+  raw_content?: string;
+}
+
+export interface ShopeeCookieInfo {
+  exists: boolean;
+  count: number;
+  spc_u?: string | null;
+  has_spc_ec: boolean;
+  updated_at?: number | null;
+  size_bytes: number;
+  raw_content?: string;
+}
+
+export interface ShopeeCategory {
+  catid: number;
+  name: string;
+  english_name?: string;
+  children?: Array<{ catid: number; name: string }>;
+}
+

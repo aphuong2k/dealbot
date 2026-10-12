@@ -71,19 +71,108 @@
 
         <div class="accounts-list">
           <div *ngFor="let acc of config.accounts" class="acc-config-box">
-            <div class="acc-config-title">
-              <b>{{ acc.name }}</b>
+            <div class="acc-main-info">
+              <div class="acc-name-row">
+                <span class="acc-avatar">👤</span>
+                <b class="acc-name-text">{{ acc.name }}</b>
+                <ng-container *ngIf="cookiesInfo[acc.name]?.exists; else noCookieTag">
+                  <nz-tag nzColor="success">🟢 Đã có Cookie ({{ cookiesInfo[acc.name].count }} mục)</nz-tag>
+                  <nz-tag *ngIf="cookiesInfo[acc.name].c_user" nzColor="blue">UID: {{ cookiesInfo[acc.name].c_user }}</nz-tag>
+                  <nz-tag *ngIf="!cookiesInfo[acc.name].has_xs" nzColor="warning">⚠️ Thiếu xs</nz-tag>
+                </ng-container>
+                <ng-template #noCookieTag>
+                  <nz-tag nzColor="error">🔴 Chưa có Cookie</nz-tag>
+                </ng-template>
+              </div>
               <span class="acc-cookie-path">{{ acc.cookie_file }}</span>
             </div>
-            <div class="acc-warm-toggle">
-              <label>Đã nuôi cứng (created_warm):</label>
-              <nz-switch [(ngModel)]="acc.created_warm"></nz-switch>
+
+            <div class="acc-actions-wrap">
+              <div class="acc-warm-toggle">
+                <label>Đã nuôi cứng:</label>
+                <nz-switch [(ngModel)]="acc.created_warm"></nz-switch>
+              </div>
+              <button 
+                nz-button 
+                class="btn-test-connect" 
+                (click)="testConnect(acc.name)" 
+                [nzLoading]="testingAccount[acc.name]"
+                [disabled]="!cookiesInfo[acc.name] || !cookiesInfo[acc.name].exists"
+                nz-tooltip="Chạy trình duyệt ngầm Playwright để kiểm tra cookie còn đăng nhập được Facebook hay không"
+              >
+                ⚡ Test Kết Nối FB
+              </button>
+              <button nz-button nzType="primary" class="btn-edit-cookie" (click)="openCookieModal(acc.name)">
+                🔑 Sửa Cookie
+              </button>
             </div>
           </div>
         </div>
 
         <div class="checkpoint-notice">
           ℹ️ Nếu nick dính checkpoint đăng xuất, bot sẽ tự động tạm dừng nick đó 3 ngày và thông báo về Telegram. Nick còn lại vẫn hoạt động bình thường.
+        </div>
+      </div>
+
+      <!-- Section 2.5: Shopee Affiliate & Cào Danh Mục Ngành Hàng -->
+      <div class="settings-card glass-card">
+        <div class="card-header-flex">
+          <h3 class="card-heading">🛒 Shopee Affiliate & Cào Danh Mục Ngành</h3>
+          <button nz-button nzSize="small" class="btn-shopee-sync" (click)="openCategoriesModal()">
+            📂 Cào Danh Mục Ngành Shopee
+          </button>
+        </div>
+
+        <p class="setting-desc">
+          Nhập Cookie tài khoản Shopee Affiliate để bot vượt tường lửa Shopee, cào deal Flash Sale, cào danh mục ngành và tạo link tracking Affiliate có gắn Sub-ID.
+        </p>
+
+        <!-- Trạng thái Cookie Shopee -->
+        <div class="acc-config-box shopee-acc-box">
+          <div class="acc-main-info">
+            <div class="acc-name-row">
+              <span class="acc-avatar">🛍️</span>
+              <b class="acc-name-text">Tài Khoản Shopee Affiliate</b>
+              <ng-container *ngIf="shopeeCookieInfo?.exists; else noShopeeCookie">
+                <nz-tag nzColor="success">🟢 Đã có Cookie ({{ shopeeCookieInfo?.count }} mục)</nz-tag>
+                <nz-tag *ngIf="shopeeCookieInfo?.spc_u" nzColor="orange">UID: {{ shopeeCookieInfo?.spc_u }}</nz-tag>
+                <nz-tag *ngIf="!shopeeCookieInfo?.has_spc_ec" nzColor="warning">⚠️ Thiếu SPC_EC</nz-tag>
+              </ng-container>
+              <ng-template #noShopeeCookie>
+                <nz-tag nzColor="error">🔴 Chưa có Cookie Shopee</nz-tag>
+              </ng-template>
+            </div>
+            <span class="acc-cookie-path">cookies/shopee_aff.json</span>
+          </div>
+
+          <div class="acc-actions-wrap">
+            <button 
+              nz-button 
+              class="btn-test-connect" 
+              (click)="testShopeeConnect()" 
+              [nzLoading]="testingShopee"
+              [disabled]="!shopeeCookieInfo?.exists"
+              nz-tooltip="Kiểm tra cookie Shopee còn phiên đăng nhập hay bị Shopee chặn"
+            >
+              ⚡ Test Kết Nối Shopee
+            </button>
+            <button nz-button nzType="primary" class="btn-edit-shopee-cookie" (click)="openShopeeCookieModal()">
+              🔑 Nhập / Sửa Cookie Shopee
+            </button>
+          </div>
+        </div>
+
+        <!-- Các ngành hàng đang cấu hình -->
+        <div class="niches-status-wrap">
+          <div class="niches-header">
+            <span class="setting-name">Danh mục ngành bot đang theo dõi ({{ config?.niches?.length || 0 }} ngách):</span>
+            <button nz-button nzType="link" nzSize="small" (click)="openCategoriesModal()">+ Thêm / Cập nhật ngành Shopee</button>
+          </div>
+          <div class="niches-tags-list">
+            <nz-tag *ngFor="let niche of config?.niches" nzColor="processing" class="niche-tag">
+              🏷️ {{ niche }}
+            </nz-tag>
+          </div>
         </div>
       </div>
 
@@ -161,4 +250,252 @@
       </div>
     </div>
   </nz-spin>
+
+  <!-- Modal Quản Lý Cookie Facebook -->
+  <nz-modal
+    [(nzVisible)]="cookieModalVisible"
+    [nzTitle]="'🔑 Quản Lý Cookie Facebook - Nick: ' + selectedAccount"
+    [nzWidth]="680"
+    (nzOnCancel)="closeCookieModal()"
+    [nzFooter]="modalFooter"
+  >
+    <ng-container *nzModalContent>
+      <nz-spin [nzSpinning]="cookieLoading">
+        <div class="cookie-modal-body">
+          <!-- Trạng thái cookie hiện tại -->
+          <div *ngIf="currentCookieInfo?.exists" class="cookie-status-banner">
+            <div class="banner-grid">
+              <div class="banner-item">
+                <span class="banner-lbl">Trạng thái:</span>
+                <span class="banner-val text-success">🟢 Đã lưu vào file</span>
+              </div>
+              <div class="banner-item" *ngIf="currentCookieInfo?.c_user">
+                <span class="banner-lbl">Facebook UID:</span>
+                <span class="banner-val font-mono"><b>{{ currentCookieInfo?.c_user }}</b></span>
+              </div>
+              <div class="banner-item">
+                <span class="banner-lbl">Số lượng cookies:</span>
+                <span class="banner-val">{{ currentCookieInfo?.count }} mục</span>
+              </div>
+              <div class="banner-item">
+                <span class="banner-lbl">Phiên đăng nhập (xs):</span>
+                <span class="banner-val" [class.text-success]="currentCookieInfo?.has_xs" [class.text-warning]="!currentCookieInfo?.has_xs">
+                  {{ currentCookieInfo?.has_xs ? '✅ Có sẵn' : '⚠️ Chưa tìm thấy' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="!currentCookieInfo?.exists" class="cookie-status-banner warning-bg">
+            <span>⚠️ Nick này hiện chưa có file cookie hoặc chưa được cấu hình. Vui lòng dán JSON hoặc tải file lên.</span>
+          </div>
+
+          <!-- Thanh công cụ thao tác nhanh -->
+          <div class="cookie-toolbar">
+            <label class="btn-upload-file">
+              📂 Tải File .json
+              <input type="file" accept=".json,.txt" (change)="onFileUpload($event)" style="display: none;" />
+            </label>
+            <button nz-button nzSize="small" class="btn-subtle" (click)="formatJson()">✨ Căn Chỉnh JSON</button>
+            <button 
+              *ngIf="currentCookieInfo?.exists" 
+              nz-button 
+              nzSize="small" 
+              class="btn-modal-test" 
+              (click)="testConnect(selectedAccount)" 
+              [nzLoading]="testingAccount[selectedAccount]"
+            >
+              ⚡ Test Kết Nối FB
+            </button>
+            <button *ngIf="currentCookieInfo?.exists" nz-button nzDanger nzSize="small" (click)="deleteCookie()">🗑️ Xóa File Cookie</button>
+          </div>
+
+          <!-- Khung dán nội dung Cookie -->
+          <div class="cookie-editor-wrap">
+            <label class="editor-label">Dán chuỗi Cookie hoặc JSON từ Cookie-Editor:</label>
+            <textarea
+              nz-input
+              rows="10"
+              [(ngModel)]="cookieInput"
+              placeholder='[&#10;  {&#10;    "name": "c_user",&#10;    "value": "100012345678",&#10;    "domain": ".facebook.com"&#10;  },&#10;  {&#10;    "name": "xs",&#10;    "value": "..."&#10;  }&#10;]'
+              class="cookie-textarea font-mono"
+            ></textarea>
+            <span class="editor-hint">💡 Hệ thống hỗ trợ cả mảng JSON chuẩn từ Cookie-Editor/EditThisCookie và chuỗi cookie (c_user=...; xs=...)</span>
+          </div>
+
+          <!-- Hướng dẫn nhanh -->
+          <div class="cookie-guide-box">
+            <b class="guide-title">📌 Cách lấy Cookie Facebook nhanh nhất:</b>
+            <ol class="guide-steps">
+              <li>Cài tiện ích <b>Cookie-Editor</b> trên trình duyệt Chrome / Edge / Cốc Cốc.</li>
+              <li>Đăng nhập nick Facebook tương ứng (ví dụ nick phụ phụ trách nhóm).</li>
+              <li>Mở Cookie-Editor trên tab Facebook, bấm <b>Export</b> ➔ chọn <b>Export as JSON</b>.</li>
+              <li>Dán nội dung vừa copy vào ô trên rồi bấm <b>"💾 Lưu & Cập Nhật Cookie"</b>.</li>
+            </ol>
+          </div>
+        </div>
+      </nz-spin>
+    </ng-container>
+
+    <ng-template #modalFooter>
+      <button nz-button (click)="closeCookieModal()">Đóng</button>
+      <button nz-button nzType="primary" class="btn-primary" (click)="saveCookie()" [nzLoading]="cookieSaving">
+        💾 Lưu & Cập Nhật Cookie
+      </button>
+    </ng-template>
+  </nz-modal>
+
+  <!-- MODAL: Cấu Hình Cookie Shopee Affiliate -->
+  <nz-modal
+    [(nzVisible)]="shopeeModalVisible"
+    nzTitle="🛍️ Cấu Hình Cookie Shopee Affiliate"
+    (nzOnCancel)="closeShopeeCookieModal()"
+    [nzFooter]="shopeeModalFooter"
+    [nzWidth]="740"
+    [nzMaskClosable]="false"
+  >
+    <ng-container *nzModalContent>
+      <nz-spin [nzSpinning]="shopeeCookieLoading">
+        <div class="cookie-modal-body">
+          <!-- Trạng thái hiện tại -->
+          <div *ngIf="shopeeCookieInfo?.exists" class="cookie-status-banner success-bg">
+            <div class="banner-title">
+              <span>✅ <b>Đang có file cookie Shopee hoạt động</b></span>
+              <span class="file-path">cookies/shopee_aff.json</span>
+            </div>
+            <div class="banner-details">
+              <div class="banner-item" *ngIf="shopeeCookieInfo?.spc_u">
+                <span class="banner-lbl">Shopee UID:</span>
+                <span class="banner-val font-mono"><b>{{ shopeeCookieInfo?.spc_u }}</b></span>
+              </div>
+              <div class="banner-item">
+                <span class="banner-lbl">Số lượng cookies:</span>
+                <span class="banner-val">{{ shopeeCookieInfo?.count }} mục</span>
+              </div>
+              <div class="banner-item">
+                <span class="banner-lbl">Session (SPC_EC):</span>
+                <span class="banner-val" [class.text-success]="shopeeCookieInfo?.has_spc_ec" [class.text-warning]="!shopeeCookieInfo?.has_spc_ec">
+                  {{ shopeeCookieInfo?.has_spc_ec ? '✅ Có sẵn' : '⚠️ Chưa tìm thấy' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="!shopeeCookieInfo?.exists" class="cookie-status-banner warning-bg">
+            <span>⚠️ Chưa có file cookie Shopee. Vui lòng dán JSON hoặc chuỗi Header từ Cookie-Editor để bot cào được deal.</span>
+          </div>
+
+          <!-- Thanh công cụ -->
+          <div class="cookie-toolbar">
+            <label class="btn-upload-file">
+              📂 Tải File .json
+              <input type="file" accept=".json,.txt" (change)="onShopeeFileUpload($event)" style="display: none;" />
+            </label>
+            <button nz-button nzSize="small" class="btn-subtle" (click)="formatShopeeJson()">✨ Căn Chỉnh JSON</button>
+            <button 
+              *ngIf="shopeeCookieInfo?.exists" 
+              nz-button 
+              nzSize="small" 
+              class="btn-modal-test" 
+              (click)="testShopeeConnect()" 
+              [nzLoading]="testingShopee"
+            >
+              ⚡ Test Kết Nối Shopee
+            </button>
+            <button *ngIf="shopeeCookieInfo?.exists" nz-button nzDanger nzSize="small" (click)="deleteShopeeCookie()">🗑️ Xóa Cookie Shopee</button>
+          </div>
+
+          <!-- Textarea dán cookie -->
+          <div class="cookie-editor-wrap">
+            <label class="editor-label">Dán chuỗi Cookie hoặc JSON Cookie-Editor:</label>
+            <textarea
+              nz-input
+              rows="9"
+              [(ngModel)]="shopeeCookieInput"
+              placeholder='[&#10;  {&#10;    "name": "SPC_EC",&#10;    "value": "...",&#10;    "domain": ".shopee.vn"&#10;  },&#10;  {&#10;    "name": "SPC_U",&#10;    "value": "12345678"&#10;  }&#10;]&#10;hoặc dán chuỗi: SPC_EC=...; SPC_U=...; SPC_SI=...'
+              class="cookie-textarea font-mono"
+            ></textarea>
+            <span class="editor-hint">💡 Hỗ trợ cả chuỗi Header cookie (SPC_EC=...; SPC_U=...) và mảng JSON từ Cookie-Editor.</span>
+          </div>
+
+          <!-- Hướng dẫn -->
+          <div class="cookie-guide-box">
+            <b class="guide-title">📌 Cách lấy Cookie Shopee Affiliate:</b>
+            <ol class="guide-steps">
+              <li>Mở trình duyệt, đăng nhập vào <b>shopee.vn</b> hoặc <b>affiliate.shopee.vn</b>.</li>
+              <li>Bấm vào icon tiện ích <b>Cookie-Editor</b> trên thanh trình duyệt.</li>
+              <li>Bấm <b>Export</b> ➔ chọn <b>Export as JSON</b> (hoặc copy chuỗi Header).</li>
+              <li>Dán vào khung trên rồi bấm <b>"💾 Lưu & Cập Nhật Cookie Shopee"</b>.</li>
+            </ol>
+          </div>
+        </div>
+      </nz-spin>
+    </ng-container>
+
+    <ng-template #shopeeModalFooter>
+      <button nz-button (click)="closeShopeeCookieModal()">Đóng</button>
+      <button nz-button nzType="primary" class="btn-primary" (click)="saveShopeeCookie()" [nzLoading]="shopeeCookieSaving">
+        💾 Lưu & Cập Nhật Cookie Shopee
+      </button>
+    </ng-template>
+  </nz-modal>
+
+  <!-- MODAL: Cây Danh Mục Ngành Hàng Shopee -->
+  <nz-modal
+    [(nzVisible)]="categoriesModalVisible"
+    nzTitle="📂 Cây Danh Mục Ngành Hàng Shopee Chính Thức"
+    (nzOnCancel)="closeCategoriesModal()"
+    [nzFooter]="categoriesModalFooter"
+    [nzWidth]="860"
+    [nzMaskClosable]="false"
+  >
+    <ng-container *nzModalContent>
+      <nz-spin [nzSpinning]="categoriesLoading">
+        <div class="categories-modal-body">
+          <div class="categories-header-bar">
+            <div>
+              <p class="categories-desc">
+                Cào trực tiếp từ Shopee API. Tick chọn các ngành hàng bạn muốn bot theo dõi và cào deal tự động:
+              </p>
+            </div>
+            <div class="categories-bulk-actions">
+              <button nz-button nzSize="small" (click)="selectAllCategories()">Chọn Tất Cả</button>
+              <button nz-button nzSize="small" (click)="deselectAllCategories()">Bỏ Chọn Tất Cả</button>
+            </div>
+          </div>
+
+          <div class="categories-grid-list">
+            <div *ngFor="let cat of shopeeCategories" class="cat-card-box">
+              <div class="cat-card-header" (click)="toggleCategory(cat.name)">
+                <label nz-checkbox [ngModel]="selectedCategories[cat.name]" (ngModelChange)="selectedCategories[cat.name] = $event" (click)="$event.stopPropagation()">
+                  <b class="cat-name">{{ cat.name }}</b>
+                </label>
+                <span class="cat-sub-count">ID: {{ cat.catid }} ({{ cat.children?.length || 0 }} ngành con)</span>
+              </div>
+              <div class="cat-children-list" *ngIf="cat.children && cat.children.length > 0">
+                <span 
+                  *ngFor="let sub of cat.children.slice(0, 8)" 
+                  class="subcat-chip"
+                  [class.active]="selectedCategories[sub.name]"
+                  (click)="toggleCategory(sub.name)"
+                >
+                  {{ sub.name }}
+                </span>
+                <span *ngIf="cat.children.length > 8" class="subcat-more">
+                  +{{ cat.children.length - 8 }} khác
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nz-spin>
+    </ng-container>
+
+    <ng-template #categoriesModalFooter>
+      <button nz-button (click)="closeCategoriesModal()">Hủy</button>
+      <button nz-button nzType="primary" class="btn-primary" (click)="syncCategoriesToNiches()" [nzLoading]="syncingCategories">
+        💾 Đồng Bộ Vào Ngách Của Bot (Niches)
+      </button>
+    </ng-template>
+  </nz-modal>
 </div>

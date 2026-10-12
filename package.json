@@ -1,0 +1,11 @@
+{
+  "name": "dealbot",
+  "version": "1.0.0",
+  "description": "Dealbot Studio - Fullstack Automated Affiliate Deal Hunter",
+  "scripts": {
+    "start": "python start.py",
+    "start:bat": "cmd /c start.bat",
+    "backend": "cd dealbot && python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload",
+    "frontend": "cd dealbot-ui && npm start"
+  }
+}

@@ -1,7 +1,7 @@
 """FastAPI Backend Server cho Dealbot Frontend (Angular + NG-ZORRO).
 Cung cấp REST API đầy đủ để quản trị Deals, Groups, Lịch đăng, Coupons, Cấu hình và Báo cáo.
 """
-import os, sys, time, yaml, threading
+import os, sys, time, yaml, threading, json, subprocess
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 import db
-from modules import groups, deals, planner, poster, coupons, telegram_channel
+from modules import groups, deals, planner, poster, coupons, telegram_channel, shopee
 from notify import tg
 
 load_dotenv()
@@ -53,6 +53,9 @@ class ConfigUpdate(BaseModel):
     telegram_channel: Optional[Dict[str, Any]] = None
     learning: Optional[Dict[str, Any]] = None
 
+class CookieUpdate(BaseModel):
+    cookie_data: str
+
 class EventItem(BaseModel):
     title: str
     merchant: str = "shopee"
@@ -60,6 +63,9 @@ class EventItem(BaseModel):
     end: str
     detail: Optional[str] = ""
     link: str
+
+class SyncNichesRequest(BaseModel):
+    niches: List[str]
 
 # --- ENDPOINTS ---
 
@@ -154,13 +160,13 @@ def list_deals(
     return [dict(r) for r in rows]
 
 @app.post("/api/deals/crawl")
-def trigger_crawl_deals(background_tasks: BackgroundTasks):
-    """Kích hoạt cào deal mới từ Accesstrade."""
+def trigger_crawl_deals(background_tasks: BackgroundTasks, source: Optional[str] = "all"):
+    """Kích hoạt cào deal mới từ Shopee và Accesstrade."""
     def run_crawl():
         cfg = get_config()
         deals.refresh(cfg)
     background_tasks.add_task(run_crawl)
-    return {"message": "Đang cào deal trong tiến trình nền..."}
+    return {"message": "Đang cào deal từ Shopee (Flash Sale & Ngành hàng) trong tiến trình nền..."}
 
 @app.get("/api/groups")
 def list_groups(
@@ -344,3 +350,264 @@ def broadcast_telegram_digest(background_tasks: BackgroundTasks):
             )
     background_tasks.add_task(run_broadcast)
     return {"message": "Đang phát sóng bản tin lên Kênh Telegram..."}
+
+# --- COOKIE MANAGEMENT ENDPOINTS ---
+
+def parse_cookie_input(raw_text: str) -> list:
+    """Hỗ trợ phân tích cả định dạng mảng JSON (từ Cookie-Editor) và chuỗi cookie c_user=...; xs=..."""
+    raw_text = raw_text.strip()
+    if not raw_text:
+        raise ValueError("Nội dung cookie không được để trống!")
+
+    # 1. Thử phân tích JSON
+    if raw_text.startswith("[") or raw_text.startswith("{"):
+        try:
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, dict):
+                if "cookies" in parsed and isinstance(parsed["cookies"], list):
+                    parsed = parsed["cookies"]
+                else:
+                    parsed = [{"name": k, "value": str(v), "domain": ".facebook.com", "path": "/"} for k, v in parsed.items()]
+            if isinstance(parsed, list):
+                cleaned = []
+                for item in parsed:
+                    if isinstance(item, dict) and "name" in item and "value" in item:
+                        cleaned.append({
+                            "name": str(item["name"]),
+                            "value": str(item["value"]),
+                            "domain": item.get("domain", ".facebook.com"),
+                            "path": item.get("path", "/"),
+                            "secure": bool(item.get("secure", True)),
+                            "sameSite": item.get("sameSite", "no_restriction")
+                        })
+                if cleaned:
+                    return cleaned
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Thử phân tích dạng chuỗi Header: name=val; name2=val2
+    items = []
+    for part in raw_text.split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        items.append({
+            "name": k.strip(),
+            "value": v.strip(),
+            "domain": ".facebook.com",
+            "path": "/",
+            "secure": True,
+            "sameSite": "no_restriction"
+        })
+    if items:
+        return items
+
+    raise ValueError("Không nhận diện được định dạng Cookie. Vui lòng dán mảng JSON từ Cookie-Editor hoặc chuỗi cookie dạng 'c_user=...; xs=...'")
+
+def get_account_cookie_info(acc_name: str, cookie_rel_path: str = None) -> dict:
+    if not cookie_rel_path:
+        cookie_rel_path = f"cookies/{acc_name}.json"
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+    
+    info = {
+        "account": acc_name,
+        "cookie_file": cookie_rel_path,
+        "exists": False,
+        "count": 0,
+        "c_user": None,
+        "has_xs": False,
+        "updated_at": None,
+        "size_bytes": 0
+    }
+    if os.path.exists(full_path):
+        info["exists"] = True
+        info["size_bytes"] = os.path.getsize(full_path)
+        info["updated_at"] = int(os.path.getmtime(full_path))
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                info["count"] = len(data)
+                for item in data:
+                    if isinstance(item, dict):
+                        if item.get("name") == "c_user":
+                            info["c_user"] = str(item.get("value"))
+                        elif item.get("name") == "xs":
+                            info["has_xs"] = True
+        except Exception:
+            pass
+    return info
+
+@app.get("/api/accounts/cookies")
+def list_accounts_cookies():
+    """Lấy trạng thái cookie của tất cả các nick cấu hình."""
+    cfg = get_config()
+    accs = cfg.get("accounts", [])
+    result = []
+    for a in accs:
+        result.append(get_account_cookie_info(a["name"], a.get("cookie_file")))
+    return result
+
+@app.get("/api/accounts/{account_name}/cookie")
+def get_account_cookie(account_name: str):
+    """Lấy nội dung raw của cookie để hiển thị trên trình soạn thảo."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+    info = get_account_cookie_info(account_name, cookie_rel_path)
+    
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+    
+    raw_content = ""
+    if os.path.exists(full_path):
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                raw_content = json.dumps(data, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raw_content = f"Lỗi đọc file: {e}"
+            
+    return {**info, "raw_content": raw_content}
+
+@app.post("/api/accounts/{account_name}/cookie")
+def save_account_cookie(account_name: str, payload: CookieUpdate):
+    """Lưu và chuẩn hóa cookie cho nick Facebook."""
+    try:
+        cookies_list = parse_cookie_input(payload.cookie_data)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+    
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    with open(full_path, "w", encoding="utf-8") as f:
+        json.dump(cookies_list, f, indent=2, ensure_ascii=False)
+
+    info = get_account_cookie_info(account_name, cookie_rel_path)
+    
+    msg = f"Đã lưu thành công {info['count']} cookies cho {account_name}!"
+    if info.get("c_user"):
+        msg += f" (UID Facebook: {info['c_user']})"
+    if not info.get("has_xs"):
+        msg += " ⚠️ Chú ý: Chưa tìm thấy session 'xs', hãy đảm bảo nick đã đăng nhập Facebook."
+
+    return {"message": msg, "info": info}
+
+@app.delete("/api/accounts/{account_name}/cookie")
+def delete_account_cookie(account_name: str):
+    """Xóa file cookie của tài khoản."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+    if os.path.exists(full_path):
+        os.remove(full_path)
+        return {"message": f"Đã xóa file cookie của {account_name}"}
+    return {"message": "File cookie không tồn tại"}
+
+@app.post("/api/accounts/{account_name}/test-connect")
+def test_facebook_connect(account_name: str):
+    """Kiểm tra trực tiếp cookie Facebook có còn sống và đăng nhập được không qua tiến trình Playwright độc lập."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+    
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{account_name}'. Hãy cập nhật cookie trước.")
+
+    checker_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_checker.py")
+    try:
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        proc = subprocess.run(
+            [sys.executable, checker_script, full_path],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=35
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.strip() or "Tiến trình kiểm tra gặp lỗi không xác định."
+            raise RuntimeError(err)
+
+        output_str = proc.stdout.strip()
+        if not output_str:
+            raise RuntimeError("Không nhận được dữ liệu trả về từ trình duyệt kiểm tra.")
+
+        data = json.loads(output_str)
+        data["account"] = account_name
+        return data
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Lỗi phản hồi từ trình duyệt: {proc.stdout}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi kiểm tra kết nối Facebook: {str(e)}")
+
+# --- SHOPEE AFFILIATE & CATEGORIES API ---
+
+@app.get("/api/shopee/cookie")
+def get_shopee_cookie_endpoint():
+    """Lấy trạng thái và thông tin cookie Shopee Affiliate."""
+    return shopee.get_shopee_cookie_info()
+
+@app.post("/api/shopee/cookie")
+def save_shopee_cookie_endpoint(payload: CookieUpdate):
+    """Lưu và chuẩn hóa cookie Shopee Affiliate."""
+    try:
+        return shopee.save_shopee_cookie(payload.cookie_data)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+@app.delete("/api/shopee/cookie")
+def delete_shopee_cookie_endpoint():
+    """Xóa file cookie Shopee Affiliate."""
+    return shopee.delete_shopee_cookie()
+
+@app.post("/api/shopee/test-connect")
+def test_shopee_connect_endpoint():
+    """Kiểm tra trực tiếp cookie Shopee có còn hoạt động không."""
+    return shopee.test_shopee_connect()
+
+@app.get("/api/shopee/categories")
+def get_shopee_categories_endpoint():
+    """Cào toàn bộ Cây Danh Mục Ngành Hàng chính thức từ Shopee."""
+    cats = shopee.fetch_shopee_categories()
+    return {"categories": cats, "total": len(cats)}
+
+@app.post("/api/shopee/sync-niches")
+def sync_shopee_niches_endpoint(payload: SyncNichesRequest):
+    """Lưu các ngành hàng Shopee được chọn vào danh sách niches của bot trong config.yaml."""
+    cfg = get_config()
+    existing = set(cfg.get("niches", []))
+    for n in payload.niches:
+        if n and n.strip():
+            existing.add(n.strip())
+    cfg["niches"] = sorted(list(existing))
+    save_config(cfg)
+    return {"message": f"Đã đồng bộ {len(cfg['niches'])} ngành hàng vào cấu hình ngách (niches)!", "niches": cfg["niches"]}
+
+

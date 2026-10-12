@@ -10,19 +10,38 @@ class AccessTrade(Source):
     def fetch(self, niche):
         tok = os.getenv("ACCESSTRADE_TOKEN")
         if not tok: return []
-        r = requests.get("https://api.accesstrade.vn/v1/datafeeds",
-                         headers={"Authorization": f"Token {tok}"},
-                         params={"merchant": "shopee", "keywords": niche, "limit": 50}, timeout=30)
+        try:
+            r = requests.get("https://api.accesstrade.vn/v1/datafeeds",
+                             headers={"Authorization": f"Token {tok}"},
+                             params={"merchant": "shopee", "keywords": niche, "limit": 50}, timeout=30)
+            out = []
+            for d in r.json().get("data", []):
+                out.append(dict(id=str(d.get("sku") or d.get("id")), niche=niche, title=d["name"],
+                                price=d.get("price"), orig_price=d.get("discount_price") or d.get("price"),
+                                discount=d.get("discount_rate") or 0, commission=d.get("commission_rate") or 0,
+                                rating=d.get("rating") or 0, sold=d.get("sold") or 0,
+                                url=d["url"], aff_url=d.get("aff_link") or d["url"], image=d.get("image")))
+            return out
+        except Exception:
+            return []
+
+class ShopeeSource(Source):
+    """Cào deal trực tiếp từ Shopee (Flash Sale & tìm kiếm theo ngách)."""
+    def fetch(self, niche):
+        from . import shopee
         out = []
-        for d in r.json().get("data", []):
-            out.append(dict(id=str(d.get("sku") or d.get("id")), niche=niche, title=d["name"],
-                            price=d.get("price"), orig_price=d.get("discount_price") or d.get("price"),
-                            discount=d.get("discount_rate") or 0, commission=d.get("commission_rate") or 0,
-                            rating=d.get("rating") or 0, sold=d.get("sold") or 0,
-                            url=d["url"], aff_url=d.get("aff_link") or d["url"], image=d.get("image")))
+        # 1. Cào deal sản phẩm theo từ khóa ngách
+        niche_deals = shopee.crawl_shopee_deals_by_keyword(niche, limit=25)
+        out.extend(niche_deals)
+        # 2. Cào thêm deal Flash Sale hot trên Shopee
+        fs_deals = shopee.crawl_shopee_flash_sale(limit=30)
+        for d in fs_deals:
+            d["niche"] = niche
+        out.extend(fs_deals)
         return out
 
-SOURCES = [AccessTrade()]
+SOURCES = [ShopeeSource(), AccessTrade()]
+
 
 def score(d):
     s  = min(d["discount"], 70) / 70 * 40

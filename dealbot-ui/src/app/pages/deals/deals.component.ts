@@ -61,6 +61,22 @@ export class DealsComponent implements OnInit {
 
   ngOnInit(): void {
     this.fetchDeals();
+    this.loadNiches();
+  }
+
+  loadNiches(): void {
+    this.api.getConfig().subscribe({
+      next: (cfg) => {
+        if (cfg && cfg.niches) {
+          const dynamicNiches = cfg.niches.map((n: string) => ({
+            label: n.charAt(0).toUpperCase() + n.slice(1),
+            value: n
+          }));
+          this.niches = [{ label: 'Tất cả ngách', value: '' }, ...dynamicNiches];
+        }
+      },
+      error: () => {}
+    });
   }
 
   fetchDeals(): void {
