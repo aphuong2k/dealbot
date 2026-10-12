@@ -115,31 +115,32 @@
       </div>
 
       <!-- Section 2.5: Shopee Affiliate & Cào Danh Mục Ngành Hàng -->
+      <!-- Section 2.5: Shopee Mua Hàng & Cào Danh Mục Ngành Hàng -->
       <div class="settings-card glass-card">
         <div class="card-header-flex">
-          <h3 class="card-heading">🛒 Shopee Affiliate & Cào Danh Mục Ngành</h3>
+          <h3 class="card-heading">🛒 Shopee Mua Hàng (Cào Deal & Danh Mục)</h3>
           <button nz-button nzSize="small" class="btn-shopee-sync" (click)="openCategoriesModal()">
             📂 Cào Danh Mục Ngành Shopee
           </button>
         </div>
 
         <p class="setting-desc">
-          Nhập Cookie tài khoản Shopee Affiliate để bot vượt tường lửa Shopee, cào deal Flash Sale, cào danh mục ngành và tạo link tracking Affiliate có gắn Sub-ID.
+          Cookie tài khoản Shopee mua hàng thông thường (shopee.vn) giúp bot vượt tường lửa cào deal Flash Sale, tìm kiếm sản phẩm và cào cây danh mục ngành hàng.
         </p>
 
-        <!-- Trạng thái Cookie Shopee -->
+        <!-- Trạng thái Cookie Shopee Mua Hàng -->
         <div class="acc-config-box shopee-acc-box">
           <div class="acc-main-info">
             <div class="acc-name-row">
               <span class="acc-avatar">🛍️</span>
-              <b class="acc-name-text">Tài Khoản Shopee Affiliate</b>
+              <b class="acc-name-text">Cookie Shopee Mua Hàng (shopee.vn)</b>
               <ng-container *ngIf="shopeeCookieInfo?.exists; else noShopeeCookie">
                 <nz-tag nzColor="success">🟢 Đã có Cookie ({{ shopeeCookieInfo?.count }} mục)</nz-tag>
                 <nz-tag *ngIf="shopeeCookieInfo?.spc_u" nzColor="orange">UID: {{ shopeeCookieInfo?.spc_u }}</nz-tag>
                 <nz-tag *ngIf="!shopeeCookieInfo?.has_spc_ec" nzColor="warning">⚠️ Thiếu SPC_EC</nz-tag>
               </ng-container>
               <ng-template #noShopeeCookie>
-                <nz-tag nzColor="error">🔴 Chưa có Cookie Shopee</nz-tag>
+                <nz-tag nzColor="error">🔴 Chưa có Cookie</nz-tag>
               </ng-template>
             </div>
             <span class="acc-cookie-path">cookies/shopee_aff.json</span>
@@ -152,12 +153,12 @@
               (click)="testShopeeConnect()" 
               [nzLoading]="testingShopee"
               [disabled]="!shopeeCookieInfo?.exists"
-              nz-tooltip="Kiểm tra cookie Shopee còn phiên đăng nhập hay bị Shopee chặn"
+              nz-tooltip="Kiểm tra cookie Shopee còn hoạt động hay bị chặn"
             >
-              ⚡ Test Kết Nối Shopee
+              ⚡ Test Cào Shopee
             </button>
             <button nz-button nzType="primary" class="btn-edit-shopee-cookie" (click)="openShopeeCookieModal()">
-              🔑 Nhập / Sửa Cookie Shopee
+              🔑 Nhập / Sửa Cookie
             </button>
           </div>
         </div>
@@ -175,6 +176,120 @@
           </div>
         </div>
       </div>
+
+      <!-- Section 2.6: Shopee Affiliate - Tạo Shortlink Hoa Hồng (s.shopee.vn) -->
+      <div class="settings-card glass-card shopee-aff-card">
+        <div class="card-header-flex">
+          <h3 class="card-heading">🎯 Shopee Affiliate & Tạo Link Hoa Hồng (s.shopee.vn)</h3>
+          <span class="badge-feature">BẮT BUỘC ĐỂ NHẬN HOA HỒNG</span>
+        </div>
+
+        <p class="setting-desc">
+          Để được Shopee ghi nhận hoa hồng khi chia sẻ deal lên Facebook/Telegram, link sản phẩm bắt buộc phải chuyển đổi thành <b>Shortlink Affiliate (https://s.shopee.vn/...)</b>. Bạn có thể cấu hình bằng 1 trong 2 cách sau:
+        </p>
+
+        <div class="aff-methods-grid">
+          <!-- Cách 1: Cookie affiliate.shopee.vn -->
+          <div class="method-card">
+            <div class="method-header">
+              <span class="method-badge">Cách 1</span>
+              <b class="method-title">Cookie Cổng affiliate.shopee.vn</b>
+            </div>
+            <p class="method-desc">Đăng nhập vào cổng Shopee Affiliate Publisher, dùng Cookie-Editor copy cookie và dán vào đây.</p>
+            
+            <div class="acc-config-box compact-box">
+              <div class="acc-main-info">
+                <div class="acc-name-row">
+                  <span class="acc-avatar">🔑</span>
+                  <ng-container *ngIf="shopeePortalCookieInfo?.exists; else noPortalCookie">
+                    <nz-tag nzColor="success">🟢 Đã có Cookie ({{ shopeePortalCookieInfo?.count }} mục)</nz-tag>
+                    <nz-tag *ngIf="shopeePortalCookieInfo?.affiliate_id" nzColor="gold">ID: {{ shopeePortalCookieInfo?.affiliate_id }}</nz-tag>
+                    <nz-tag *ngIf="shopeePortalCookieInfo?.affiliate_name" nzColor="purple">👤 {{ shopeePortalCookieInfo?.affiliate_name }}</nz-tag>
+                    <nz-tag *ngIf="!shopeePortalCookieInfo?.affiliate_id && shopeePortalCookieInfo?.spc_u" nzColor="blue">UID: {{ shopeePortalCookieInfo?.spc_u }}</nz-tag>
+                  </ng-container>
+                  <ng-template #noPortalCookie>
+                    <nz-tag nzColor="error">🔴 Chưa có Cookie</nz-tag>
+                  </ng-template>
+                </div>
+                <span class="acc-cookie-path">cookies/shopee_aff_portal.json</span>
+              </div>
+              <button nz-button nzType="primary" class="btn-primary-sm" (click)="openShopeePortalModal()">
+                🔑 Nhập Cookie affiliate.shopee.vn
+              </button>
+            </div>
+          </div>
+
+          <!-- Cách 2: Shopee Open API -->
+          <div class="method-card">
+            <div class="method-header">
+              <span class="method-badge badge-recommended">Cách 2 (Khuyên Dùng)</span>
+              <b class="method-title">Shopee Affiliate Open API</b>
+            </div>
+            <p class="method-desc">Đăng ký tại <a href="https://affiliate.shopee.vn/open_api" target="_blank">affiliate.shopee.vn/open_api</a>. Không lo hết hạn cookie!</p>
+
+            <div class="api-inputs-wrap">
+              <div class="api-field">
+                <label>App ID:</label>
+                <input nz-input [(ngModel)]="shopeeAppId" placeholder="VD: 17300000000" />
+              </div>
+              <div class="api-field">
+                <label>Secret Key:</label>
+                <input nz-input type="password" [(ngModel)]="shopeeSecretKey" placeholder="Khóa bảo mật Shopee Open API" />
+              </div>
+              <button nz-button class="btn-primary-sm" (click)="saveOpenApiConfig()" [nzLoading]="savingOpenApi">
+                💾 Lưu Cấu Hình Open API
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Công cụ Test Chuyển Đổi Link Ngay Tại Chỗ -->
+        <div class="aff-live-test-box">
+          <div class="test-header">
+            <span class="test-icon">⚡</span>
+            <b>Thử Nghiệm Tạo Link Affiliate (Live Test)</b>
+          </div>
+          <p class="test-hint">Dán link sản phẩm Shopee bất kỳ để kiểm tra bot có sinh link hoa hồng thành công không:</p>
+          
+          <div class="test-input-row">
+            <input nz-input [(ngModel)]="testProductUrl" placeholder="https://shopee.vn/product/..." style="flex: 1;" />
+            <button nz-button nzType="primary" class="btn-test-convert" (click)="testConvertLink()" [nzLoading]="testingConvert">
+              🚀 Chuyển Đổi Sang Link Affiliate
+            </button>
+          </div>
+
+          <!-- Kết quả test -->
+          <div *ngIf="convertResult" class="test-result-box" [ngClass]="convertResult.success ? 'result-success' : 'result-error'">
+            <div *ngIf="convertResult.success" class="result-content">
+              <div class="result-badge-row">
+                <span class="result-badge-success">
+                  ✅ THÀNH CÔNG
+                  <ng-container *ngIf="convertResult.method === 'open_api'"> (Qua Shopee Open API: s.shopee.vn)</ng-container>
+                  <ng-container *ngIf="convertResult.method === 'universal_tracking'"> (Gắn Publisher ID: {{ convertResult.affiliate_id }})</ng-container>
+                </span>
+                <span *ngIf="convertResult.affiliate_name" class="aff-owner-tag">👤 {{ convertResult.affiliate_name }}</span>
+              </div>
+              <div class="result-link-row">
+                <a [href]="convertResult.short_link" target="_blank" class="short-link-text">{{ convertResult.short_link }}</a>
+                <button nz-button nzSize="small" (click)="copyConvertedLink()">📋 Sao Chép Link</button>
+                <a [href]="convertResult.short_link" target="_blank" nz-button nzSize="small">↗ Mở Thử</a>
+              </div>
+              <div *ngIf="convertResult.full_tracking_link && convertResult.full_tracking_link !== convertResult.short_link" class="full-tracking-details">
+                <div class="tracking-label">🔗 Link gốc kèm tham số hoa hồng Shopee:</div>
+                <code class="tracking-code">{{ convertResult.full_tracking_link }}</code>
+              </div>
+              <div *ngIf="convertResult.method === 'universal_tracking'" class="open-api-notice">
+                💡 <b>Ghi chú:</b> Link trên đã được gắn mã Affiliate <b>{{ convertResult.affiliate_id }}</b> của bạn. Mọi lượt click/mua hàng đều được Shopee ghi nhận hoa hồng 100%. Để rút gọn link sang dạng <b>s.shopee.vn</b> chính chủ Shopee, hãy lấy <b>App ID & Secret Key</b> từ <a href="https://affiliate.shopee.vn/open_api" target="_blank">affiliate.shopee.vn</a> dán vào ô <b>Shopee Open API</b> bên trên nhé!
+              </div>
+            </div>
+            <div *ngIf="!convertResult.success" class="result-content">
+              <span class="result-badge-error">❌ THẤT BẠI:</span>
+              <p class="result-error-msg">{{ convertResult.message }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       <!-- Section 3: Telegram Integration & Funnel -->
       <div class="settings-card glass-card">
@@ -436,6 +551,77 @@
       <button nz-button (click)="closeShopeeCookieModal()">Đóng</button>
       <button nz-button nzType="primary" class="btn-primary" (click)="saveShopeeCookie()" [nzLoading]="shopeeCookieSaving">
         💾 Lưu & Cập Nhật Cookie Shopee
+      </button>
+    </ng-template>
+  </nz-modal>
+
+  <!-- MODAL: Quản Lý Cookie Shopee Affiliate Portal (affiliate.shopee.vn) -->
+  <nz-modal
+    [(nzVisible)]="shopeePortalModalVisible"
+    nzTitle="🎯 Quản Lý Cookie Shopee Affiliate Portal (affiliate.shopee.vn)"
+    (nzOnCancel)="closeShopeePortalModal()"
+    [nzFooter]="shopeePortalModalFooter"
+    [nzWidth]="760"
+    [nzMaskClosable]="false"
+  >
+    <ng-container *nzModalContent>
+      <nz-spin [nzSpinning]="shopeePortalCookieLoading">
+        <div class="cookie-modal-content">
+          <div *ngIf="shopeePortalCookieInfo?.exists" class="cookie-status-banner success-bg">
+            <div class="status-left">
+              <span class="status-icon">🟢</span>
+              <div>
+                <b class="status-title">Cookie Affiliate Portal đang hoạt động</b>
+                <span class="status-sub">
+                  File: {{ shopeePortalCookieInfo?.file_name }} | {{ shopeePortalCookieInfo?.count }} mục cookies
+                  <span *ngIf="shopeePortalCookieInfo?.spc_u"> | UID: {{ shopeePortalCookieInfo?.spc_u }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="!shopeePortalCookieInfo?.exists" class="cookie-status-banner warning-bg">
+            <span>⚠️ Chưa có Cookie Shopee Affiliate Portal. Vui lòng đăng nhập vào https://affiliate.shopee.vn rồi copy cookie dán vào đây.</span>
+          </div>
+
+          <div class="cookie-toolbar">
+            <label class="btn-upload-file">
+              📂 Tải File .json
+              <input type="file" accept=".json,.txt" (change)="onShopeePortalFileUpload($event)" style="display: none;" />
+            </label>
+            <button nz-button nzSize="small" class="btn-subtle" (click)="formatShopeePortalJson()">✨ Căn Chỉnh JSON</button>
+            <button *ngIf="shopeePortalCookieInfo?.exists" nz-button nzDanger nzSize="small" (click)="deleteShopeePortalCookie()">🗑️ Xóa Cookie</button>
+          </div>
+
+          <div class="cookie-editor-wrap">
+            <label class="editor-label">Dán chuỗi Cookie hoặc JSON Cookie-Editor (từ https://affiliate.shopee.vn):</label>
+            <textarea
+              nz-input
+              rows="9"
+              [(ngModel)]="shopeePortalCookieInput"
+              placeholder='[&#10;  {&#10;    "name": "SPC_EC",&#10;    "value": "...",&#10;    "domain": ".shopee.vn"&#10;  },&#10;  {&#10;    "name": "SPC_U",&#10;    "value": "1177303600"&#10;  }&#10;]'
+              class="cookie-textarea font-mono"
+            ></textarea>
+            <span class="editor-hint">💡 Đảm bảo bạn mở extension Cookie-Editor trên tab https://affiliate.shopee.vn để copy.</span>
+          </div>
+
+          <div class="cookie-guide-box">
+            <b class="guide-title">📌 Cách lấy Cookie Shopee Affiliate Portal:</b>
+            <ol class="guide-steps">
+              <li>Mở trình duyệt, truy cập và đăng nhập vào <b>https://affiliate.shopee.vn</b>.</li>
+              <li>Bấm vào icon tiện ích <b>Cookie-Editor</b> trên thanh trình duyệt.</li>
+              <li>Bấm <b>Export</b> ➔ chọn <b>Export as JSON</b> (hoặc copy chuỗi Header).</li>
+              <li>Dán vào khung trên rồi bấm <b>"💾 Lưu & Cập Nhật Cookie Affiliate"</b>.</li>
+            </ol>
+          </div>
+        </div>
+      </nz-spin>
+    </ng-container>
+
+    <ng-template #shopeePortalModalFooter>
+      <button nz-button (click)="closeShopeePortalModal()">Đóng</button>
+      <button nz-button nzType="primary" class="btn-primary" (click)="saveShopeePortalCookie()" [nzLoading]="shopeePortalCookieSaving">
+        💾 Lưu & Cập Nhật Cookie Affiliate
       </button>
     </ng-template>
   </nz-modal>

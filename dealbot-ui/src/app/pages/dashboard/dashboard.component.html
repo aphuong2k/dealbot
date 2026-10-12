@@ -36,6 +36,18 @@
     </div>
   </div>
 
+  <!-- Cookie / Health Alert Banner -->
+  <div *ngIf="hasAccountAlert" class="cookie-alert-banner">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-content">
+      <div class="alert-title">Cảnh báo: Có tài khoản Facebook bị gián đoạn hoặc cần cập nhật Cookie!</div>
+      <div class="alert-desc">
+        Tài khoản: <span *ngFor="let acc of alertAccounts" class="alert-acc-tag">{{ acc.name || acc.id }} ({{ acc.status }})</span> đang bị dừng đăng để bảo vệ tài khoản khỏi checkpoint.
+      </div>
+    </div>
+    <a routerLink="/settings" class="btn-alert-action">🔧 Cập nhật Cookie trong Cài Đặt &rarr;</a>
+  </div>
+
   <nz-spin [nzSpinning]="loading">
     <!-- 4 Stats Cards -->
     <div class="metrics-grid">

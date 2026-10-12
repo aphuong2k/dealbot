@@ -38,21 +38,30 @@ def check_cookie(cookie_file: str) -> dict:
             ctx.add_cookies(cookies)
             page = ctx.new_page()
             page.goto("https://www.facebook.com/", wait_until="domcontentloaded", timeout=25000)
-            time.sleep(2.5)
+            time.sleep(3)
 
             final_url = page.url
             title = page.title()
+            current_cookies = ctx.cookies()
+            has_c_user_live = any(ck["name"] == "c_user" for ck in current_cookies)
+            has_login_form = False
+            try:
+                has_login_form = page.locator('input[name="email"], input[name="pass"], #login_form, a[data-testid="open-registration-form-button"]').count() > 0
+            except Exception:
+                pass
+
+            is_guest = any(k in final_url.lower() for k in ("checkpoint", "login", "two_step")) or not has_c_user_live or has_login_form
+
             browser.close()
 
-        is_checkpoint = any(k in final_url.lower() for k in ("checkpoint", "login", "two_step"))
-        if is_checkpoint:
+        if is_guest:
             return {
                 "success": False,
                 "c_user": c_user,
                 "url": final_url,
                 "title": title,
                 "checkpoint": True,
-                "message": f"❌ Cookie đã hết hạn hoặc nick dính Checkpoint Facebook! (URL: {final_url})"
+                "message": f"❌ Cookie Facebook đã hết hạn hoặc bị đăng xuất! (UID: {c_user or 'Không rõ'}). Vui lòng đăng nhập lại Facebook trên trình duyệt và copy lại cookie mới."
             }
         else:
             return {

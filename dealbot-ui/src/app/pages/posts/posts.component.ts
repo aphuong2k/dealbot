@@ -106,6 +106,40 @@ export class PostsComponent implements OnInit {
     });
   }
 
+  runningPostId: number | null = null;
+
+  runNowPost(post: PostItem): void {
+    if (!confirm(`Bạn có chắc muốn đăng ngay bài viết #${post.id} lên nhóm này?`)) return;
+    this.runningPostId = post.id;
+    this.api.runSinglePost(post.id).subscribe({
+      next: (res) => {
+        this.runningPostId = null;
+        this.msg.success(res.message);
+        this.fetchPosts();
+        if (this.previewModalVisible) {
+          this.closePreview();
+        }
+      },
+      error: (err) => {
+        this.runningPostId = null;
+        const msg = err?.error?.detail || 'Lỗi khi đăng bài!';
+        this.msg.error(msg);
+      }
+    });
+  }
+
+  extractAffLink(text?: string): string {
+    if (!text) return '';
+    const m = text.match(/https?:\/\/[^\s]+/);
+    return m ? m[0] : '';
+  }
+
+  copyLink(link: string): void {
+    if (!link) return;
+    navigator.clipboard.writeText(link);
+    this.msg.success('Đã sao chép link vào Clipboard!');
+  }
+
   viewPost(post: PostItem): void {
     this.selectedPostForPreview = post;
     this.previewModalVisible = true;

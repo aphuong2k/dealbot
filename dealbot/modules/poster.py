@@ -320,3 +320,50 @@ def warmup_accounts(cfg):
                 sess.close()
             except Exception as e:
                 print(f"[WARMUP ERROR] Nick {acc['name']}:", e)
+
+
+def post_single(cfg, post):
+    """Thực hiện đăng ngay lập tức 1 bài viết theo yêu cầu."""
+    now = time.time()
+    name = post["account"]
+    accs = {a["name"]: a for a in cfg["accounts"]}
+    if name not in accs:
+        return {"success": False, "message": f"Tài khoản '{name}' không có trong cấu hình accounts."}
+
+    with sync_playwright() as pw:
+        sess = None
+        try:
+            sess = AccountSession(pw, accs[name])
+            if not sess.healthy():
+                db.x("INSERT OR REPLACE INTO accounts(name,paused_until) VALUES(?,?)", (name, now + 3 * 86400))
+                return {"success": False, "message": f"Tài khoản {name} dính checkpoint hoặc hết hạn cookie. Đã tạm dừng 3 ngày."}
+
+            res = sess.post(
+                post["group_url"], post["caption"], post["comment"],
+                cfg.get("dry_run", False), post["image_path"]
+            )
+
+            status = res.get("status", "done")
+            c_status = res.get("comment_status", "none")
+            c_retry_at = (now + 45 * 60) if c_status == "pending_approval" else 0
+
+            db.x("""UPDATE posts SET status=?, posted_at=?, comment_status=?, comment_retry_at=?
+                    WHERE id=?""", (status, now, c_status, c_retry_at, post["id"]))
+
+            if status == "done":
+                db.x("""UPDATE groups SET last_posted_at=?, success_count=success_count+1, consecutive_fails=0,
+                        priority_score=MIN(200.0, priority_score + 5.0) WHERE url=?""", (now, post["group_url"]))
+
+            return {
+                "success": True,
+                "status": status,
+                "comment_status": c_status,
+                "message": f"Đã đăng bài #{post['id']} thành công ({status})!"
+            }
+        except Exception as e:
+            err = str(e)
+            db.x("UPDATE posts SET status='failed', error=? WHERE id=?", (err[:300], post["id"]))
+            return {"success": False, "message": f"Lỗi khi đăng bài: {err}"}
+        finally:
+            if sess:
+                sess.close()

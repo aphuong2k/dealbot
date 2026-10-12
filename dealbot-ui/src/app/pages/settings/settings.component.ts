@@ -47,13 +47,37 @@ export class SettingsComponent implements OnInit {
   cookieSaving = false;
   currentCookieInfo: AccountCookieInfo | null = null;
 
-  // Quản lý Cookie Shopee Affiliate
+  // Quản lý Cookie Shopee Mua Hàng (Cào deals & danh mục)
   shopeeCookieInfo: ShopeeCookieInfo | null = null;
   testingShopee = false;
   shopeeModalVisible = false;
   shopeeCookieInput = '';
   shopeeCookieSaving = false;
   shopeeCookieLoading = false;
+
+  // Quản lý Cookie Shopee Affiliate Portal (affiliate.shopee.vn) & Open API
+  shopeePortalCookieInfo: ShopeeCookieInfo | null = null;
+  shopeePortalModalVisible = false;
+  shopeePortalCookieInput = '';
+  shopeePortalCookieSaving = false;
+  shopeePortalCookieLoading = false;
+
+  shopeeAppId = '';
+  shopeeSecretKey = '';
+  savingOpenApi = false;
+
+  // Test chuyển đổi link Affiliate s.shopee.vn
+  testProductUrl = 'https://shopee.vn/product/274439148/18251261314';
+  testingConvert = false;
+  convertResult: {
+    success: boolean;
+    short_link?: string;
+    full_tracking_link?: string;
+    affiliate_id?: string;
+    affiliate_name?: string;
+    method?: string;
+    message: string;
+  } | null = null;
 
   // Quản lý Cây Danh Mục Ngành Hàng Shopee
   categoriesModalVisible = false;
@@ -71,6 +95,8 @@ export class SettingsComponent implements OnInit {
     this.fetchConfig();
     this.fetchCookiesStatus();
     this.fetchShopeeCookieStatus();
+    this.fetchShopeePortalCookieStatus();
+    this.fetchOpenApiConfig();
   }
 
   fetchConfig(): void {
@@ -434,5 +460,158 @@ export class SettingsComponent implements OnInit {
       this.msg.warning('Nội dung không phải là cú pháp JSON hợp lệ.');
     }
   }
+
+  // --- SHOPEE AFFILIATE PORTAL (affiliate.shopee.vn) ---
+  fetchShopeePortalCookieStatus(): void {
+    this.api.getShopeeAffPortalCookie().subscribe({
+      next: (info) => {
+        this.shopeePortalCookieInfo = info;
+      },
+      error: () => {}
+    });
+  }
+
+  openShopeePortalModal(): void {
+    this.shopeePortalModalVisible = true;
+    this.shopeePortalCookieLoading = true;
+    this.shopeePortalCookieInput = '';
+
+    this.api.getShopeeAffPortalCookie().subscribe({
+      next: (info) => {
+        this.shopeePortalCookieInfo = info;
+        this.shopeePortalCookieInput = info.raw_content || '';
+        this.shopeePortalCookieLoading = false;
+      },
+      error: () => {
+        this.shopeePortalCookieLoading = false;
+      }
+    });
+  }
+
+  closeShopeePortalModal(): void {
+    this.shopeePortalModalVisible = false;
+    this.shopeePortalCookieInput = '';
+  }
+
+  saveShopeePortalCookie(): void {
+    if (!this.shopeePortalCookieInput.trim()) {
+      this.msg.warning('Vui lòng dán cookie từ trang affiliate.shopee.vn!');
+      return;
+    }
+
+    this.shopeePortalCookieSaving = true;
+    this.api.saveShopeeAffPortalCookie(this.shopeePortalCookieInput).subscribe({
+      next: (res) => {
+        this.shopeePortalCookieSaving = false;
+        this.msg.success(res.message);
+        if (res.info) {
+          this.shopeePortalCookieInfo = res.info;
+        }
+        this.shopeePortalModalVisible = false;
+        this.fetchShopeePortalCookieStatus();
+      },
+      error: (err) => {
+        this.shopeePortalCookieSaving = false;
+        const msg = err?.error?.detail || 'Lỗi khi lưu cookie Shopee Affiliate!';
+        this.msg.error(msg);
+      }
+    });
+  }
+
+  deleteShopeePortalCookie(): void {
+    if (!confirm('Bạn có chắc muốn xóa file Cookie Shopee Affiliate Portal?')) return;
+    this.api.deleteShopeeAffPortalCookie().subscribe({
+      next: (res) => {
+        this.msg.info(res.message);
+        this.shopeePortalCookieInput = '';
+        this.fetchShopeePortalCookieStatus();
+        this.closeShopeePortalModal();
+      },
+      error: () => this.msg.error('Lỗi khi xóa cookie!')
+    });
+  }
+
+  formatShopeePortalJson(): void {
+    try {
+      const obj = JSON.parse(this.shopeePortalCookieInput);
+      this.shopeePortalCookieInput = JSON.stringify(obj, null, 2);
+      this.msg.success('Đã căn chỉnh định dạng JSON!');
+    } catch {
+      this.msg.warning('Nội dung không phải là cú pháp JSON hợp lệ.');
+    }
+  }
+
+  onShopeePortalFileUpload(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.shopeePortalCookieInput = e.target?.result as string;
+        this.msg.success(`Đã tải file "${file.name}"!`);
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  // --- SHOPEE OPEN API ---
+  fetchOpenApiConfig(): void {
+    this.api.getShopeeOpenApiConfig().subscribe({
+      next: (res) => {
+        this.shopeeAppId = res.app_id || '';
+        this.shopeeSecretKey = res.secret || '';
+      },
+      error: () => {}
+    });
+  }
+
+  saveOpenApiConfig(): void {
+    this.savingOpenApi = true;
+    this.api.saveShopeeOpenApiConfig(this.shopeeAppId, this.shopeeSecretKey).subscribe({
+      next: (res) => {
+        this.savingOpenApi = false;
+        this.msg.success(res.message);
+      },
+      error: () => {
+        this.savingOpenApi = false;
+        this.msg.error('Lỗi khi lưu cấu hình Shopee Open API!');
+      }
+    });
+  }
+
+  // --- TEST CONVERT LINK AFFILIATE ---
+  testConvertLink(): void {
+    if (!this.testProductUrl.trim()) {
+      this.msg.warning('Vui lòng nhập link sản phẩm Shopee cần test!');
+      return;
+    }
+
+    this.testingConvert = true;
+    this.convertResult = null;
+    this.api.testConvertShopeeLink(this.testProductUrl.trim(), ['nick_a', 'test_deal']).subscribe({
+      next: (res) => {
+        this.testingConvert = false;
+        this.convertResult = res;
+        if (res.success) {
+          this.msg.success(res.message);
+        } else {
+          this.msg.warning(res.message);
+        }
+      },
+      error: (err) => {
+        this.testingConvert = false;
+        const msg = err?.error?.detail || 'Lỗi khi gọi API chuyển đổi link!';
+        this.msg.error(msg);
+      }
+    });
+  }
+
+  copyConvertedLink(): void {
+    if (this.convertResult?.short_link) {
+      navigator.clipboard.writeText(this.convertResult.short_link);
+      this.msg.success('Đã sao chép link affiliate vào Clipboard!');
+    }
+  }
 }
+
 

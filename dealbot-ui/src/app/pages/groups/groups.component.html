@@ -6,6 +6,9 @@
       <p class="section-subtitle">Mỗi nhóm gán cố định 1 nick (sticky account), tự động học hỏi tỷ lệ duyệt và phạt hạ điểm khi bị lỗi.</p>
     </div>
     <div class="header-actions">
+      <button nz-button class="btn-scan" (click)="openScanModal()">
+        📋 Quét Group Đã Join
+      </button>
       <button nz-button class="btn-primary" (click)="triggerDiscover()" [nzLoading]="discoverLoading">
         🔎 AI Khám Phá Nhóm Mới (Thứ 2, 5h)
       </button>
@@ -14,7 +17,7 @@
 
   <!-- Tabs Navigation -->
   <div class="tabs-card glass-card">
-    <nz-tabset (nzSelectedIndexChange)="onTabChange($event)">
+    <nz-tabset (nzSelectedIndexChange)="onTabChange($event)" class="bright-tabs">
       <nz-tab nzTitle="🌐 Tất cả nhóm"></nz-tab>
       <nz-tab nzTitle="⏳ Chờ duyệt (Candidate)"></nz-tab>
       <nz-tab nzTitle="✅ Đang hoạt động (Joined)"></nz-tab>
@@ -22,10 +25,22 @@
       <nz-tab nzTitle="🚫 Đã chặn (Banned)"></nz-tab>
     </nz-tabset>
 
-    <!-- Search bar -->
+    <!-- Search & Filter Bar -->
     <div class="filter-bar">
-      <input nz-input placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" style="max-width: 380px;" />
-      <button nz-button class="btn-outline" (click)="fetchGroups()">Lọc</button>
+      <div class="search-input-wrap">
+        <input nz-input class="search-input-bright" placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" />
+      </div>
+      <nz-select [(ngModel)]="selectedAccountFilter" (ngModelChange)="fetchGroups()" style="width: 185px;" nzPlaceHolder="Lọc theo nick">
+        <nz-option nzValue="all" nzLabel="👥 Tất cả tài khoản"></nz-option>
+        <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? '👤 ' + opt.label : '👤 Chưa gán'"></nz-option>
+      </nz-select>
+      <button nz-button class="btn-filter-primary" (click)="fetchGroups()">
+        🔍 Lọc
+      </button>
+      <button nz-button class="btn-filter-reset" (click)="resetFilters()" *ngIf="searchQuery || selectedAccountFilter !== 'all'">
+        🔄 Đặt lại
+      </button>
+      <span class="group-count-badge">Tổng: <b>{{ groups.length }}</b> nhóm</span>
     </div>
   </div>
 
@@ -47,7 +62,7 @@
           <th nzWidth="160px">Điểm Uy Tín (0-200)</th>
           <th nzWidth="120px">Cho Link Aff</th>
           <th nzWidth="140px">Thành Công / Lỗi</th>
-          <th nzWidth="180px">Thao Tác Duyệt</th>
+          <th nzWidth="260px">Thao Tác</th>
         </tr>
       </thead>
       <tbody>
@@ -111,7 +126,7 @@
             </div>
           </td>
 
-          <!-- Approval Buttons -->
+          <!-- Actions: Approval + Leave + Remove -->
           <td>
             <div class="actions-cell">
               <button
@@ -135,10 +150,161 @@
               <span *ngIf="g.status === 'joined'" class="status-badge joined">Đã tham gia</span>
               <span *ngIf="g.status === 'cooling_down'" class="status-badge cooling">Tạm phạt 7 ngày</span>
               <span *ngIf="g.status === 'banned'" class="status-badge banned">Bị chặn</span>
+
+              <!-- Leave Group Button -->
+              <button
+                *ngIf="g.status === 'joined' || g.status === 'approved' || g.status === 'cooling_down'"
+                nz-button
+                nzSize="small"
+                class="btn-leave"
+                nz-popconfirm
+                nzPopconfirmTitle="Xác nhận rời nhóm này trên Facebook?"
+                nzOkText="Rời nhóm"
+                nzCancelText="Hủy"
+                (nzOnConfirm)="confirmLeaveGroup(g)"
+                [nzLoading]="leavingGroupUrl === g.url"
+              >
+                🚪 Rời
+              </button>
+
+              <!-- Remove from DB Button -->
+              <button
+                nz-button
+                nzSize="small"
+                class="btn-remove"
+                nz-popconfirm
+                nzPopconfirmTitle="Xóa nhóm khỏi database?"
+                nzOkText="Xóa"
+                nzCancelText="Hủy"
+                (nzOnConfirm)="removeGroupFromDb(g)"
+              >
+                🗑️
+              </button>
             </div>
           </td>
         </tr>
       </tbody>
     </nz-table>
   </div>
+
+  <!-- Scan Groups Modal -->
+  <nz-modal
+    [(nzVisible)]="scanModalVisible"
+    nzTitle="📋 Quét Danh Sách Group Facebook Đã Join"
+    [nzWidth]="820"
+    nzCentered
+    [nzFooter]="null"
+    (nzOnCancel)="closeScanModal()"
+    nzClassName="scan-modal"
+  >
+    <ng-container *nzModalContent>
+      <div class="scan-modal-body">
+        <!-- Account selector -->
+        <div class="scan-controls">
+          <div class="scan-field">
+            <label>Chọn tài khoản Facebook:</label>
+            <nz-select [(ngModel)]="scanAccount" style="width: 240px;">
+              <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label"
+                         [nzDisabled]="!opt.value"></nz-option>
+            </nz-select>
+          </div>
+          <button
+            nz-button
+            class="btn-primary"
+            (click)="startScan()"
+            [nzLoading]="scanLoading"
+            [disabled]="!scanAccount"
+          >
+            🔍 Bắt Đầu Quét
+          </button>
+          <button
+            *ngIf="scannedGroups.length > 0"
+            nz-button
+            class="btn-approve"
+            (click)="importAllScanned()"
+            [nzLoading]="importLoading"
+          >
+            📥 Thêm Tất Cả Vào Bot
+          </button>
+        </div>
+
+        <p *ngIf="scanLoading" class="scan-notice">
+          ⏳ Đang mở trình duyệt và quét danh sách group... Quá trình này có thể mất 30-60 giây.
+        </p>
+
+        <div *ngIf="scannedMessage && !scanLoading" class="scan-result-msg">
+          {{ scannedMessage }}
+        </div>
+
+        <!-- Scanned Groups Table -->
+        <div *ngIf="scannedGroups.length > 0" class="scanned-groups-list">
+          <div class="scanned-search-wrap">
+            <input nz-input class="search-input-bright" placeholder="🔍 Lọc nhanh trong danh sách nhóm đã quét..." [(ngModel)]="scannedSearchQuery" style="margin-bottom: 12px;" />
+          </div>
+          <nz-table
+            #scannedTable
+            [nzData]="filteredScannedGroups"
+            [nzPageSize]="8"
+            nzShowPagination
+            nzSize="small"
+          >
+            <thead>
+              <tr>
+                <th>Tên Group</th>
+                <th nzWidth="110px">Trong DB</th>
+                <th nzWidth="200px">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let sg of scannedTable.data">
+                <td>
+                  <div class="group-col-name">
+                    <a [href]="sg.url" target="_blank" class="group-link">
+                      {{ sg.name }} ↗
+                    </a>
+                    <span class="group-url-text">{{ sg.url }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span *ngIf="isGroupInDb(sg)" class="badge-in-db">✅ Có</span>
+                  <span *ngIf="!isGroupInDb(sg)" class="badge-not-in-db">➖ Chưa</span>
+                </td>
+                <td>
+                  <div style="display: flex; gap: 8px;">
+                    <button
+                      *ngIf="!isGroupInDb(sg)"
+                      nz-button
+                      nzSize="small"
+                      class="btn-approve"
+                      (click)="importGroup(sg)"
+                    >
+                      ➕ Thêm
+                    </button>
+                    <button
+                      nz-button
+                      nzSize="small"
+                      class="btn-leave"
+                      nz-popconfirm
+                      nzPopconfirmTitle="Xác nhận rời nhóm này?"
+                      nzOkText="Rời"
+                      nzCancelText="Hủy"
+                      (nzOnConfirm)="leaveScannedGroup(sg)"
+                      [nzLoading]="leavingGroupUrl === sg.url"
+                    >
+                      🚪 Rời
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </nz-table>
+        </div>
+
+        <nz-empty
+          *ngIf="scannedGroups.length === 0 && scannedMessage && !scanLoading"
+          nzNotFoundContent="Không tìm thấy group nào."
+        ></nz-empty>
+      </div>
+    </ng-container>
+  </nz-modal>
 </div>

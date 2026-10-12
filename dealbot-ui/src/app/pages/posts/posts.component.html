@@ -112,9 +112,22 @@
 
           <!-- Action -->
           <td>
-            <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
-              Chi tiết
-            </button>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
+                👁️ Chi tiết
+              </button>
+              <button
+                *ngIf="p.status === 'queued' || p.status === 'failed'"
+                nz-button
+                nzSize="small"
+                class="btn-fire-post"
+                (click)="runNowPost(p)"
+                [nzLoading]="runningPostId === p.id"
+                title="Đăng bài này ngay lập tức"
+              >
+                ⚡ Đăng ngay
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -127,15 +140,15 @@
     nzTitle="Chi Tiết Bài Viết Lên Lịch"
     (nzOnCancel)="closePreview()"
     [nzFooter]="null"
-    nzWidth="600px"
+    nzWidth="640px"
   >
     <ng-container *nzModalContent>
       <div *ngIf="selectedPostForPreview" class="preview-modal-body">
         <div class="preview-meta">
-          <div><b>Tài khoản:</b> {{ selectedPostForPreview.account }}</div>
-          <div><b>Thời gian đăng:</b> {{ selectedPostForPreview.scheduled_at * 1000 | date:'HH:mm dd/MM/yyyy' }}</div>
-          <div><b>Nhóm:</b> {{ selectedPostForPreview.group_url }}</div>
-          <div><b>Sub-ID:</b> <code>{{ selectedPostForPreview.sub_id }}</code></div>
+          <div><b>Tài khoản:</b> <span class="acc-pill-sm">{{ selectedPostForPreview.account }}</span></div>
+          <div><b>Thời gian hẹn:</b> {{ selectedPostForPreview.scheduled_at * 1000 | date:'HH:mm dd/MM/yyyy' }}</div>
+          <div><b>Nhóm đăng:</b> <a [href]="selectedPostForPreview.group_url" target="_blank">{{ selectedPostForPreview.group_url }} ↗</a></div>
+          <div><b>Mã Sub-ID:</b> <code>{{ selectedPostForPreview.sub_id }}</code></div>
         </div>
 
         <div class="preview-section">
@@ -148,9 +161,27 @@
           <div class="comment-box">{{ selectedPostForPreview.comment }}</div>
         </div>
 
+        <!-- Bóc tách link affiliate để kiểm tra -->
+        <div *ngIf="extractAffLink(selectedPostForPreview.comment || selectedPostForPreview.caption) as affLink" class="preview-section">
+          <h4>🔗 Link Affiliate trong bài:</h4>
+          <div class="aff-link-preview-box">
+            <span class="aff-link-text">{{ affLink }}</span>
+            <div style="display: flex; gap: 8px;">
+              <button nz-button nzSize="small" (click)="copyLink(affLink)">📋 Sao chép</button>
+              <a [href]="affLink" target="_blank" nz-button nzSize="small">↗ Mở thử</a>
+            </div>
+          </div>
+        </div>
+
         <div *ngIf="selectedPostForPreview.error" class="preview-section text-danger">
           <h4>Lỗi ghi nhận:</h4>
           <div>{{ selectedPostForPreview.error }}</div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.status === 'queued' || selectedPostForPreview.status === 'failed'" class="preview-actions">
+          <button nz-button nzType="primary" class="btn-fire-modal" (click)="runNowPost(selectedPostForPreview)" [nzLoading]="runningPostId === selectedPostForPreview.id">
+            ⚡ Đăng Bài Này Ngay Lập Tức Lên Facebook
+          </button>
         </div>
       </div>
     </ng-container>

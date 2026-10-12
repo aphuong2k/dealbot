@@ -59,6 +59,16 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  get hasAccountAlert(): boolean {
+    if (!this.stats?.accounts) return false;
+    return this.stats.accounts.some((acc: any) => acc.status === 'paused' || acc.status === 'error' || acc.status === 'cooling');
+  }
+
+  get alertAccounts(): any[] {
+    if (!this.stats?.accounts) return [];
+    return this.stats.accounts.filter((acc: any) => acc.status === 'paused' || acc.status === 'error' || acc.status === 'cooling');
+  }
+
   triggerPlan(): void {
     this.actionLoading['plan'] = true;
     this.api.planPosts().subscribe({

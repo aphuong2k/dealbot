@@ -71,4 +71,17 @@ def build_subid_link(raw_url, account="nick", group_url="", item_id="item", angl
         parsed.fragment
     ))
 
+    # Nếu là link Shopee và chưa phải link s.shopee.vn, thử chuyển đổi qua Shopee Affiliate Converter
+    if "shopee.vn" in raw_url and "s.shopee.vn" not in raw_url:
+        try:
+            from . import shopee_aff_converter
+            sub_ids = [acc_tag, grp_tag, itm_tag]
+            aff_res = shopee_aff_converter.convert_to_shopee_aff_link(raw_url, sub_ids=sub_ids)
+            if aff_res.get("success") and aff_res.get("short_link"):
+                final_url = aff_res["short_link"]
+        except Exception as e:
+            # Fallback giữ nguyên link gắn query
+            pass
+
     return final_url, composite_sub_id
+

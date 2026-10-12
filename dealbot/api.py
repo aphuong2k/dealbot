@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 import db
-from modules import groups, deals, planner, poster, coupons, telegram_channel, shopee
+from modules import groups, deals, planner, poster, coupons, telegram_channel, shopee, shopee_aff_converter
 from notify import tg
 
 load_dotenv()
@@ -66,6 +66,28 @@ class EventItem(BaseModel):
 
 class SyncNichesRequest(BaseModel):
     niches: List[str]
+
+class LeaveGroupRequest(BaseModel):
+    group_url: str
+
+class ImportGroupItem(BaseModel):
+    url: str
+    name: Optional[str] = ""
+    account: Optional[str] = ""
+    status: Optional[str] = "joined"
+    kind: Optional[str] = "dealhunt"
+    niche: Optional[str] = "săn sale"
+
+class ImportGroupsRequest(BaseModel):
+    groups: List[ImportGroupItem]
+
+class ShopeeOpenApiConfig(BaseModel):
+    app_id: str
+    secret: str
+
+class ShopeeTestConvertRequest(BaseModel):
+    url: str
+    sub_ids: Optional[List[str]] = None
 
 # --- ENDPOINTS ---
 
@@ -173,7 +195,8 @@ def list_groups(
     status: Optional[str] = None,
     kind: Optional[str] = None,
     niche: Optional[str] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    account: Optional[str] = None
 ):
     """Danh sách hội nhóm Facebook."""
     sql = "SELECT * FROM groups WHERE 1=1"
@@ -187,6 +210,9 @@ def list_groups(
     if niche:
         sql += " AND niche=?"
         args.append(niche)
+    if account:
+        sql += " AND account=?"
+        args.append(account)
     if search:
         sql += " AND (name LIKE ? OR url LIKE ?)"
         args.extend([f"%{search}%", f"%{search}%"])
@@ -272,6 +298,18 @@ def trigger_run_due(background_tasks: BackgroundTasks):
         poster.run_due(cfg)
     background_tasks.add_task(run_post)
     return {"message": "Đang thực thi phiên đăng bài..."}
+
+@app.post("/api/posts/{post_id}/run-now")
+def run_single_post_endpoint(post_id: int):
+    """Đăng ngay lập tức một bài viết cụ thể."""
+    cfg = get_config()
+    post = db.q("SELECT * FROM posts WHERE id=?", (post_id,), one=True)
+    if not post:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy bài viết #{post_id}.")
+    res = poster.post_single(cfg, dict(post))
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("message", "Lỗi khi đăng bài."))
+    return res
 
 @app.get("/api/coupons")
 def list_coupons():
@@ -609,5 +647,164 @@ def sync_shopee_niches_endpoint(payload: SyncNichesRequest):
     cfg["niches"] = sorted(list(existing))
     save_config(cfg)
     return {"message": f"Đã đồng bộ {len(cfg['niches'])} ngành hàng vào cấu hình ngách (niches)!", "niches": cfg["niches"]}
+
+# --- SHOPEE AFFILIATE PORTAL & OPEN API CONVERTER ---
+
+@app.get("/api/shopee/affiliate-portal-cookie")
+def get_shopee_aff_portal_cookie():
+    """Lấy trạng thái cookie của cổng Shopee Affiliate Portal (affiliate.shopee.vn)."""
+    return shopee_aff_converter.get_portal_cookie_info()
+
+@app.post("/api/shopee/affiliate-portal-cookie")
+def save_shopee_aff_portal_cookie(payload: CookieUpdate):
+    """Lưu cookie của cổng Shopee Affiliate Portal (affiliate.shopee.vn)."""
+    try:
+        return shopee_aff_converter.save_portal_cookie(payload.cookie_data)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+@app.delete("/api/shopee/affiliate-portal-cookie")
+def delete_shopee_aff_portal_cookie():
+    """Xóa cookie cổng Shopee Affiliate Portal."""
+    return shopee_aff_converter.delete_portal_cookie()
+
+@app.get("/api/shopee/open-api-config")
+def get_shopee_open_api_config():
+    """Lấy App ID và Secret của Shopee Open API."""
+    return shopee_aff_converter.get_open_api_config()
+
+@app.post("/api/shopee/open-api-config")
+def save_shopee_open_api_config(payload: ShopeeOpenApiConfig):
+    """Lưu cấu hình Shopee Open API vào config.yaml."""
+    return shopee_aff_converter.save_open_api_config(payload.app_id, payload.secret)
+
+@app.post("/api/shopee/test-convert")
+def test_convert_shopee_link(payload: ShopeeTestConvertRequest):
+    """Thử nghiệm tạo link affiliate (s.shopee.vn) từ link sản phẩm Shopee bất kỳ."""
+    return shopee_aff_converter.convert_to_shopee_aff_link(payload.url, payload.sub_ids)
+
+# --- FACEBOOK GROUP SCANNER & LEAVE GROUP ---
+
+@app.post("/api/accounts/{account_name}/scan-groups")
+def scan_joined_groups_endpoint(account_name: str):
+    """Quét danh sách group Facebook mà tài khoản đã tham gia qua Playwright subprocess."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{account_name}'. Hãy cập nhật cookie trước.")
+
+    scanner_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_groups_scanner.py")
+    try:
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        proc = subprocess.run(
+            [sys.executable, scanner_script, "scan", full_path, "--max-scroll", "15"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=120  # Quét group cần thời gian cuộn trang
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.strip() or "Tiến trình quét gặp lỗi không xác định."
+            raise RuntimeError(err)
+
+        output_str = proc.stdout.strip()
+        if not output_str:
+            raise RuntimeError("Không nhận được dữ liệu trả về từ trình quét.")
+
+        data = json.loads(output_str)
+        data["account"] = account_name
+        return data
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Lỗi phản hồi từ trình duyệt: {proc.stdout}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi quét group: {str(e)}")
+
+@app.post("/api/accounts/{account_name}/leave-group")
+def leave_group_endpoint(account_name: str, payload: LeaveGroupRequest):
+    """Rời khỏi một group Facebook qua Playwright subprocess."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{account_name}'.")
+
+    scanner_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_groups_scanner.py")
+    try:
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        proc = subprocess.run(
+            [sys.executable, scanner_script, "leave", full_path, "--group-url", payload.group_url],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=60
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.strip() or "Tiến trình rời nhóm gặp lỗi."
+            raise RuntimeError(err)
+
+        output_str = proc.stdout.strip()
+        if not output_str:
+            raise RuntimeError("Không nhận được dữ liệu trả về.")
+
+        data = json.loads(output_str)
+        data["account"] = account_name
+
+        # Nếu rời nhóm thành công, cập nhật DB
+        if data.get("success"):
+            db.x("UPDATE groups SET status='skip' WHERE url=?", (payload.group_url,))
+
+        return data
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Lỗi phản hồi: {proc.stdout}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi rời nhóm: {str(e)}")
+
+@app.delete("/api/groups/remove")
+def remove_group_from_db(url: str = Query(...)):
+    """Xóa một group khỏi database (chỉ xóa trong DB, không rời nhóm trên Facebook)."""
+    existing = db.q("SELECT 1 FROM groups WHERE url=?", (url,), one=True)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Group không tồn tại trong database.")
+    db.x("DELETE FROM groups WHERE url=?", (url,))
+    return {"message": f"Đã xóa group {url} khỏi database."}
+
+@app.post("/api/groups/import-scanned")
+def import_scanned_groups_endpoint(payload: ImportGroupsRequest):
+    """Nhập các group đã quét vào cơ sở dữ liệu."""
+    added = 0
+    updated = 0
+    for g in payload.groups:
+        existing = db.q("SELECT 1 FROM groups WHERE url=?", (g.url,), one=True)
+        if existing:
+            db.x("UPDATE groups SET name=COALESCE(NULLIF(name, ''), ?), account=COALESCE(NULLIF(?, ''), account), status=? WHERE url=?",
+                 (g.name or "Group Facebook", g.account or "", g.status or "joined", g.url))
+            updated += 1
+        else:
+            db.x("INSERT INTO groups(url, name, niche, kind, status, account, allow_link, priority_score) VALUES(?,?,?,?,?,?,?,?)",
+                 (g.url, g.name or "Group Facebook", g.niche or "săn sale", g.kind or "dealhunt", g.status or "joined", g.account or "", 1, 100.0))
+            added += 1
+    return {"message": f"Đã nhập thành công! Thêm mới {added} nhóm, cập nhật {updated} nhóm.", "added": added, "updated": updated}
+
 
 
