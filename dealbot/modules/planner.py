@@ -5,7 +5,12 @@ from . import captions, coupons, affiliate, telegram_channel
 def plan_day(cfg):
     p = cfg["posting"]; names = [a["name"] for a in cfg["accounts"]]
     h0, h1 = p["active_hours"]
-    deals = db.q("SELECT * FROM deals WHERE status='new' ORDER BY score DESC LIMIT ?", (cfg["deals"]["top_per_day"],))
+    seven_days_ago = time.time() - 7 * 86400
+    deals = db.q("""SELECT * FROM deals 
+                    WHERE (status='new' OR (status='posted' AND last_posted_at < ?))
+                    AND is_valid=1 
+                    ORDER BY score DESC, created_at DESC LIMIT ?""", 
+                 (seven_days_ago, cfg["deals"]["top_per_day"]))
     cooldown = time.time() - p["group_cooldown_hours"] * 3600
     cursor = {n: max(time.time(), _today(h0)) for n in names}   # con trỏ thời gian riêng cho từng nick
     used_today = {n: 0 for n in names}
@@ -16,14 +21,26 @@ def plan_day(cfg):
     funnel_in_cmt = (cfg.get("funnel") or {}).get("include_in_comment", True)
 
     for d in deals:
-        # Lọc group: bỏ qua group bị lỗi liên tiếp >= 3, sắp xếp ưu tiên theo priority_score giảm dần
+        niche_term = (d.get("niche") or "").strip().lower()
+        # Lọc group: Ưu tiên group cùng ngành hàng, hoặc group săn sale nếu deal điểm cao (>55)
         groups = db.q("""SELECT * FROM groups 
-                         WHERE status IN ('joined','approved') AND kind='niche' AND niche=? 
+                         WHERE status IN ('joined','approved') 
+                         AND (LOWER(niche)=? OR LOWER(niche) LIKE ? OR (kind='dealhunt' AND ?>=55.0))
                          AND last_posted_at<? AND fail_count<5 AND consecutive_fails<3 
-                         ORDER BY priority_score DESC, RANDOM()""", (d["niche"], cooldown))
+                         ORDER BY priority_score DESC, RANDOM()""", 
+                      (niche_term, f"%{niche_term}%", d.get("score", 0), cooldown))
         for g in groups:
             acc = g["account"]
             if not acc or used_today[acc] >= p["max_posts_per_account_per_day"]:
+                continue
+
+            # QUẢN TRỊ TRÙNG LẶP: Không đăng lại cùng 1 sản phẩm vào cùng 1 nhóm nếu chưa qua 7 ngày
+            already_posted = db.q("""SELECT 1 FROM posts 
+                                     WHERE deal_id=? AND group_url=? 
+                                     AND status IN ('done','queued','pending_approval') 
+                                     AND scheduled_at > ?""", 
+                                  (d["id"], g["url"], seven_days_ago), one=True)
+            if already_posted:
                 continue
 
             caps = captions.variants(d, link_in_comment=p["link_in_comment"])

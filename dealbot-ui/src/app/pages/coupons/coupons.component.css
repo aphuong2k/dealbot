@@ -10,10 +10,12 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
+  padding: 20px;
 }
 
 .section-title {
   font-size: 22px;
+  font-weight: 700;
   margin-bottom: 4px;
 }
 
@@ -21,12 +23,50 @@
   color: var(--text-secondary);
   font-size: 13px;
   margin-bottom: 0;
+  max-width: 700px;
+  line-height: 1.5;
 }
 
 .header-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* --- Action Buttons --- */
+.btn-refresh-coupons {
+  background: linear-gradient(135deg, #ee4d2d 0%, #ff7849 100%);
+  border: 1px solid rgba(238, 77, 45, 0.4);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 14px rgba(238, 77, 45, 0.3);
+  transition: all 0.2s ease;
+}
+.btn-refresh-coupons:hover {
+  background: linear-gradient(135deg, #d73211 0%, #ff5722 100%);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-plan-digest {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+.btn-plan-digest:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #fff;
+}
+
+.btn-telegram {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid rgba(2, 132, 199, 0.4);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
 }
 
 .content-tabs {
@@ -39,10 +79,259 @@
   margin-bottom: 18px;
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.02);
-  border-left: 3px solid #38bdf8;
+  border-left: 3px solid #ee4d2d;
   border-radius: 4px;
 }
 
+/* --- Tab 1: Campaigns Grid --- */
+.campaigns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.campaign-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.campaign-card:hover {
+  border-color: rgba(238, 77, 45, 0.4);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
+}
+
+.campaign-card.is-live {
+  border-color: rgba(238, 77, 45, 0.6);
+  background: linear-gradient(180deg, rgba(238, 77, 45, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.campaign-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.campaign-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.campaign-tag.live-tag {
+  background: rgba(238, 77, 45, 0.2);
+  color: #ff7849;
+  border: 1px solid rgba(238, 77, 45, 0.3);
+}
+
+.live-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  padding: 2px 6px;
+  border-radius: 10px;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.campaign-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.campaign-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  flex-grow: 1;
+  line-height: 1.45;
+}
+
+.campaign-meta {
+  margin-bottom: 14px;
+}
+
+.campaign-slot {
+  font-size: 12px;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.campaign-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.btn-camp-link {
+  flex-grow: 1;
+  text-align: center;
+  background: rgba(238, 77, 45, 0.15);
+  border: 1px solid rgba(238, 77, 45, 0.3);
+  color: #ff8a65;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+.btn-camp-link:hover {
+  background: #ee4d2d;
+  color: #fff;
+}
+
+.btn-copy-link {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-copy-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* --- Tab 2: Vouchers Table --- */
+.voucher-filters-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.voucher-filters-row .search-box {
+  flex-grow: 1;
+  min-width: 250px;
+}
+
+.code-pill-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-pill {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 12px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.code-pill.code-event {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.copy-code-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.copy-code-btn:hover {
+  opacity: 1;
+}
+
+.coupon-title-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.c-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.c-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.expiry-text {
+  font-size: 12px;
+  color: #38bdf8;
+}
+
+.coupon-action-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aff-link {
+  display: inline-block;
+  padding: 3px 10px;
+  background: rgba(238, 77, 45, 0.15);
+  border: 1px solid rgba(238, 77, 45, 0.3);
+  color: #ff8a65;
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.aff-link:hover {
+  background: #ee4d2d;
+  color: #fff;
+}
+
+.copy-aff-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.copy-aff-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* --- Tab 3: Events Grid --- */
 .events-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -112,6 +401,15 @@
   margin-bottom: 12px;
 }
 
+.event-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .event-link {
   color: #38bdf8;
   font-size: 12px;
@@ -122,70 +420,19 @@
   text-decoration: underline;
 }
 
-.code-pill {
-  font-family: monospace;
-  font-weight: 700;
-  font-size: 12px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.coupon-title-col {
+.add-event-form {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 12px;
 }
 
-.c-title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-main);
-}
-
-.c-detail {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.merchant-tag {
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-transform: capitalize;
-}
-
-.expiry-text {
-  font-size: 12px;
-  color: #38bdf8;
-}
-
-.aff-link {
-  color: #38bdf8;
-  font-weight: 600;
-  font-size: 12px;
-  text-decoration: none;
-}
-
-.modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.form-group label {
+.form-item label {
   display: block;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
-
-.form-row {
-  display: flex;
-  gap: 12px;
-}
-.flex-1 { flex: 1; }
 
 .empty-state {
   text-align: center;

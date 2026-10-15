@@ -67,14 +67,28 @@ def init():
     _ensure_column("groups", "priority_score REAL DEFAULT 100.0")
     _ensure_column("groups", "last_error TEXT")
 
+    _ensure_column("groups", "members INTEGER DEFAULT 0")
+    _ensure_column("groups", "posts_per_day REAL DEFAULT 0")
+    _ensure_column("groups", "activity_text TEXT")
+    _ensure_column("groups", "privacy TEXT DEFAULT 'public'")
+
     _ensure_column("deals", "is_valid INTEGER DEFAULT 1")
     _ensure_column("deals", "last_checked_at REAL DEFAULT 0")
+    _ensure_column("deals", "posted_count INTEGER DEFAULT 0")
+    _ensure_column("deals", "last_posted_at REAL DEFAULT 0")
+    _ensure_column("deals", "is_vip INTEGER DEFAULT 0")
+    _ensure_column("deals", "is_mall INTEGER DEFAULT 0")
+    _ensure_column("deals", "brand TEXT DEFAULT ''")
+
+    _ensure_column("coupons", "category TEXT DEFAULT 'all'")
+    _ensure_column("coupons", "save_url TEXT DEFAULT ''")
 
     _ensure_column("posts", "sub_id TEXT")
     _ensure_column("posts", "comment_status TEXT DEFAULT 'none'")
     _ensure_column("posts", "comment_retry_at REAL DEFAULT 0")
     _ensure_column("posts", "comment_retries INTEGER DEFAULT 0")
     _ensure_column("posts", "channel_posted INTEGER DEFAULT 0")
+    _ensure_column("posts", "post_url TEXT")
 
     _ensure_column("accounts", "last_warmup_at REAL DEFAULT 0")
 

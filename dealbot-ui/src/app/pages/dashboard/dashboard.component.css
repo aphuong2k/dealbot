@@ -136,6 +136,20 @@
   gap: 10px;
 }
 
+.btn-run-all {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: #fff !important;
+  border: 1px solid #34d399 !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+  transition: all 0.2s ease !important;
+}
+.btn-run-all:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.55) !important;
+}
+
 .btn-primary {
   background: #3b82f6;
   border: none;

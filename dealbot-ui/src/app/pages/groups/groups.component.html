@@ -2,190 +2,955 @@
   <!-- Page Header -->
   <div class="page-header glass-card">
     <div>
-      <h2 class="section-title">Quản Trị Hội Nhóm Facebook</h2>
-      <p class="section-subtitle">Mỗi nhóm gán cố định 1 nick (sticky account), tự động học hỏi tỷ lệ duyệt và phạt hạ điểm khi bị lỗi.</p>
+      <h2 class="section-title">Hội Nhóm & Lịch Trình Đăng Bài</h2>
+      <p class="section-subtitle">Trung tâm điều phối: Quản trị hội nhóm Facebook, lập lịch bài đăng theo ngách, test đăng thủ công & Auto Pilot 1-chạm.</p>
     </div>
-    <div class="header-actions">
-      <button nz-button class="btn-scan" (click)="openScanModal()">
-        📋 Quét Group Đã Join
-      </button>
-      <button nz-button class="btn-primary" (click)="triggerDiscover()" [nzLoading]="discoverLoading">
-        🔎 AI Khám Phá Nhóm Mới (Thứ 2, 5h)
-      </button>
-    </div>
-  </div>
-
-  <!-- Tabs Navigation -->
-  <div class="tabs-card glass-card">
-    <nz-tabset (nzSelectedIndexChange)="onTabChange($event)" class="bright-tabs">
-      <nz-tab nzTitle="🌐 Tất cả nhóm"></nz-tab>
-      <nz-tab nzTitle="⏳ Chờ duyệt (Candidate)"></nz-tab>
-      <nz-tab nzTitle="✅ Đang hoạt động (Joined)"></nz-tab>
-      <nz-tab nzTitle="⚠️ Đang phạt (Cooling Down)"></nz-tab>
-      <nz-tab nzTitle="🚫 Đã chặn (Banned)"></nz-tab>
-    </nz-tabset>
-
-    <!-- Search & Filter Bar -->
-    <div class="filter-bar">
-      <div class="search-input-wrap">
-        <input nz-input class="search-input-bright" placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" />
+    <div class="header-status-pills">
+      <div class="pill-stat">
+        <span class="pill-dot dot-green"></span>
+        <span class="pill-text">Nhóm quản lý: <b>{{ groups.length }}</b></span>
       </div>
-      <nz-select [(ngModel)]="selectedAccountFilter" (ngModelChange)="fetchGroups()" style="width: 185px;" nzPlaceHolder="Lọc theo nick">
-        <nz-option nzValue="all" nzLabel="👥 Tất cả tài khoản"></nz-option>
-        <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? '👤 ' + opt.label : '👤 Chưa gán'"></nz-option>
-      </nz-select>
-      <button nz-button class="btn-filter-primary" (click)="fetchGroups()">
-        🔍 Lọc
-      </button>
-      <button nz-button class="btn-filter-reset" (click)="resetFilters()" *ngIf="searchQuery || selectedAccountFilter !== 'all'">
-        🔄 Đặt lại
-      </button>
-      <span class="group-count-badge">Tổng: <b>{{ groups.length }}</b> nhóm</span>
+      <div class="pill-stat">
+        <span class="pill-dot dot-blue"></span>
+        <span class="pill-text">Bài hôm nay: <b>{{ posts.length }}</b></span>
+      </div>
+      <div class="pill-stat" *ngIf="postsQueuedCount > 0">
+        <span class="pill-dot dot-orange"></span>
+        <span class="pill-text">Đang chờ: <b>{{ postsQueuedCount }}</b></span>
+      </div>
     </div>
   </div>
 
-  <!-- Groups Table -->
-  <div class="table-container glass-card">
-    <nz-table
-      #groupsTable
-      [nzData]="groups"
-      [nzLoading]="loading"
-      [nzPageSize]="10"
-      nzShowPagination
-      nzShowSizeChanger
-    >
-      <thead>
-        <tr>
-          <th>Tên Nhóm Facebook</th>
-          <th nzWidth="140px">Loại / Ngách</th>
-          <th nzWidth="150px">Nick Phụ Trách</th>
-          <th nzWidth="160px">Điểm Uy Tín (0-200)</th>
-          <th nzWidth="120px">Cho Link Aff</th>
-          <th nzWidth="140px">Thành Công / Lỗi</th>
-          <th nzWidth="260px">Thao Tác</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let g of groupsTable.data">
-          <!-- Name & Link -->
-          <td>
-            <div class="group-col-name">
-              <a [href]="g.url" target="_blank" class="group-link">
-                {{ g.name || 'Group Facebook' }} ↗
-              </a>
-              <span class="group-url-text">{{ g.url }}</span>
-            </div>
-          </td>
+  <!-- Main Top-Level Segmented Tabs Navigation -->
+  <div class="main-tabs-nav glass-card">
+    <button class="main-nav-tab" [class.active]="activeMainTab === 'groups'" (click)="switchMainTab('groups')">
+      <span class="tab-icon">🌐</span>
+      <span class="tab-label">Quản Lý Nhóm</span>
+      <span class="tab-badge">{{ groups.length }}</span>
+    </button>
+    <button class="main-nav-tab" [class.active]="activeMainTab === 'schedule'" (click)="switchMainTab('schedule')">
+      <span class="tab-icon">📅</span>
+      <span class="tab-label">Lịch Đăng Bài Hôm Nay</span>
+      <span class="tab-badge badge-blue" *ngIf="posts.length > 0">{{ posts.length }}</span>
+    </button>
+    <button class="main-nav-tab" [class.active]="activeMainTab === 'manual'" (click)="switchMainTab('manual')">
+      <span class="tab-icon">✍️</span>
+      <span class="tab-label">Đăng Bài Thủ Công</span>
+      <span class="tab-badge-accent">Studio</span>
+    </button>
+    <button class="main-nav-tab" [class.active]="activeMainTab === 'auto'" (click)="switchMainTab('auto')">
+      <span class="tab-icon">⚡</span>
+      <span class="tab-label">Tự Động (Auto Pilot)</span>
+      <span class="tab-badge-live">Live</span>
+    </button>
+  </div>
 
-          <!-- Kind & Niche -->
-          <td>
-            <span *ngIf="g.kind === 'dealhunt'" class="badge-dealhunt">Săn Sale</span>
-            <span *ngIf="g.kind !== 'dealhunt'" class="badge-niche">{{ g.niche }}</span>
-          </td>
+  <!-- ========================================================================= -->
+  <!-- TAB 1: QUẢN LÝ NHÓM FACEBOOK                                              -->
+  <!-- ========================================================================= -->
+  <div *ngIf="activeMainTab === 'groups'" class="tab-pane-content">
+    <!-- Group Action Buttons Bar -->
+    <div class="sub-header-actions glass-card">
+      <div class="sub-header-left">
+        <span class="sub-header-title">Thao tác hội nhóm:</span>
+        <span class="sub-header-desc">Quét nhóm theo ngành, tự động xin vào nhóm hoặc dùng AI tìm kiếm group tiềm năng.</span>
+      </div>
+      <div class="header-actions">
+        <button nz-button class="btn-niche-search" (click)="openNicheSearchModal()">
+          🎯 Quét & Đánh Giá Nhóm Theo Ngành
+        </button>
+        <button nz-button class="btn-auto-join" (click)="openAutoJoinModal()">
+          🤖 Auto Join Nhóm Chờ
+          <span *ngIf="candidateGroups.length > 0" class="badge-candidate-count">({{ candidateGroups.length }})</span>
+        </button>
+        <button nz-button class="btn-scan" (click)="openScanModal()">
+          📋 Quét Group Đã Join
+        </button>
+        <button nz-button class="btn-primary" (click)="triggerDiscover()" [nzLoading]="discoverLoading">
+          🔎 AI Khám Phá Nhóm Mới
+        </button>
+      </div>
+    </div>
 
-          <!-- Assigned Account -->
-          <td>
-            <nz-select [ngModel]="g.account" (ngModelChange)="onAccountChange(g, $event)" style="width: 130px;" nzSize="small">
-              <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label"></nz-option>
-            </nz-select>
-          </td>
+    <!-- Tabs Navigation & Filter Bar -->
+    <div class="tabs-card glass-card">
+      <nz-tabset (nzSelectedIndexChange)="onTabChange($event)" class="bright-tabs">
+        <nz-tab nzTitle="🌐 Tất cả nhóm"></nz-tab>
+        <nz-tab nzTitle="⏳ Chờ duyệt (Candidate)"></nz-tab>
+        <nz-tab nzTitle="✅ Đang hoạt động (Joined)"></nz-tab>
+        <nz-tab nzTitle="⚠️ Đang phạt (Cooling Down)"></nz-tab>
+        <nz-tab nzTitle="🚫 Đã chặn (Banned)"></nz-tab>
+      </nz-tabset>
 
-          <!-- Priority Score -->
-          <td>
-            <div class="priority-box">
-              <div class="priority-header">
-                <span class="score-bold">{{ g.priority_score | number:'1.0-0' }}</span>
-                <span class="score-max">/200</span>
+      <!-- Search & Filter Bar -->
+      <div class="filter-bar">
+        <div class="search-input-wrap">
+          <input nz-input class="search-input-bright" placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" />
+        </div>
+        <nz-select [(ngModel)]="selectedAccountFilter" (ngModelChange)="fetchGroups()" style="width: 185px;" nzPlaceHolder="Lọc theo nick">
+          <nz-option nzValue="all" nzLabel="👥 Tất cả tài khoản"></nz-option>
+          <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? '👤 ' + opt.label : '👤 Chưa gán'"></nz-option>
+        </nz-select>
+        <button nz-button class="btn-filter-primary" (click)="fetchGroups()">
+          🔍 Lọc
+        </button>
+        <button nz-button class="btn-filter-reset" (click)="resetFilters()" *ngIf="searchQuery || selectedAccountFilter !== 'all'">
+          🔄 Đặt lại
+        </button>
+        <span class="group-count-badge">Tổng: <b>{{ groups.length }}</b> nhóm</span>
+      </div>
+    </div>
+
+    <!-- Groups Table -->
+    <div class="table-container glass-card">
+      <nz-table
+        #groupsTable
+        [nzData]="groups"
+        [nzLoading]="loading"
+        [nzPageSize]="10"
+        nzShowPagination
+        nzShowSizeChanger
+      >
+        <thead>
+          <tr>
+            <th>Tên Nhóm Facebook</th>
+            <th nzWidth="130px">Loại / Ngách</th>
+            <th nzWidth="160px">Quy Mô / Tương Tác</th>
+            <th nzWidth="140px">Nick Phụ Trách</th>
+            <th nzWidth="150px">Điểm Uy Tín (0-200)</th>
+            <th nzWidth="110px">Cho Link Aff</th>
+            <th nzWidth="130px">Thành Công / Lỗi</th>
+            <th nzWidth="240px">Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let g of groupsTable.data">
+            <!-- Name & Link -->
+            <td>
+              <div class="group-col-name">
+                <a [href]="g.url" target="_blank" class="group-link">
+                  {{ g.name || 'Group Facebook' }} ↗
+                </a>
+                <span class="group-url-text">{{ g.url }}</span>
               </div>
-              <nz-progress
-                [nzPercent]="(g.priority_score / 200) * 100"
-                [nzShowInfo]="false"
-                [nzStrokeColor]="g.priority_score >= 100 ? '#10b981' : (g.priority_score >= 60 ? '#f59e0b' : '#ef4444')"
-                nzSize="small"
-              ></nz-progress>
+            </td>
+
+            <!-- Kind & Niche -->
+            <td>
+              <span *ngIf="g.kind === 'dealhunt'" class="badge-dealhunt">Săn Sale</span>
+              <span *ngIf="g.kind !== 'dealhunt'" class="badge-niche">{{ g.niche }}</span>
+            </td>
+
+            <!-- Scale & Activity -->
+            <td>
+              <div class="scale-box" style="font-size: 12px;">
+                <div *ngIf="g.members" style="font-weight: 600; color: #38bdf8;">
+                  👥 {{ g.members | number }} TV
+                </div>
+                <div *ngIf="!g.members" style="color: var(--text-muted); font-size: 11px;">
+                  Chưa có số TV
+                </div>
+                <div *ngIf="g.activity_text || g.posts_per_day" style="font-size: 11px; color: #a3a3a3; margin-top: 2px;">
+                  ⚡ {{ g.activity_text || (g.posts_per_day + ' bài/ngày') }}
+                </div>
+              </div>
+            </td>
+
+            <!-- Assigned Account -->
+            <td>
+              <nz-select [ngModel]="g.account" (ngModelChange)="onAccountChange(g, $event)" style="width: 130px;" nzSize="small">
+                <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label"></nz-option>
+              </nz-select>
+            </td>
+
+            <!-- Priority Score -->
+            <td>
+              <div class="priority-box">
+                <div class="priority-header">
+                  <span class="score-bold">{{ g.priority_score | number:'1.0-0' }}</span>
+                  <span class="score-max">/200</span>
+                </div>
+                <nz-progress
+                  [nzPercent]="(g.priority_score / 200) * 100"
+                  [nzShowInfo]="false"
+                  [nzStrokeColor]="g.priority_score >= 100 ? '#10b981' : (g.priority_score >= 60 ? '#f59e0b' : '#ef4444')"
+                  nzSize="small"
+                ></nz-progress>
+              </div>
+            </td>
+
+            <!-- Allow Link Switch -->
+            <td>
+              <nz-switch
+                [ngModel]="g.allow_link === 1"
+                (ngModelChange)="onAllowLinkChange(g, $event)"
+                nzCheckedChildren="Có"
+                nzUnCheckedChildren="Cấm"
+              ></nz-switch>
+            </td>
+
+            <!-- Success / Fails -->
+            <td>
+              <div class="stats-col">
+                <span class="text-success">Thành công: {{ g.success_count || 0 }}</span>
+                <span [ngClass]="(g.consecutive_fails || 0) > 0 ? 'text-danger' : 'text-muted'">
+                  Lỗi chuỗi: {{ g.consecutive_fails || 0 }}
+                </span>
+              </div>
+            </td>
+
+            <!-- Actions: Approval + Leave + Remove -->
+            <td>
+              <div class="actions-cell">
+                <button
+                  *ngIf="g.status === 'candidate'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-bot-join"
+                  (click)="joinSingleGroup(g)"
+                  [nzLoading]="joiningGroupUrl === g.url"
+                  title="Tự động mở trình duyệt và click tham gia nhóm này bằng Bot Playwright"
+                >
+                  🤖 Bot Vào
+                </button>
+                <button
+                  *ngIf="g.status === 'candidate' || g.status === 'cooling_down'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-approve"
+                  (click)="updateStatus(g, 'joined')"
+                  title="Đánh dấu thủ công đã vào nhóm"
+                >
+                  Vào Nhóm
+                </button>
+                <button
+                  *ngIf="g.status === 'candidate'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-skip"
+                  (click)="updateStatus(g, 'skip')"
+                >
+                  Bỏ qua
+                </button>
+                <span *ngIf="g.status === 'joined'" class="status-badge joined">Đã tham gia</span>
+                <span *ngIf="g.status === 'cooling_down'" class="status-badge cooling">Tạm phạt 7 ngày</span>
+                <span *ngIf="g.status === 'banned'" class="status-badge banned">Bị chặn</span>
+
+                <button
+                  *ngIf="g.status === 'joined' || g.status === 'approved' || g.status === 'cooling_down'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-leave"
+                  nz-popconfirm
+                  nzPopconfirmTitle="Xác nhận rời nhóm này trên Facebook?"
+                  nzOkText="Rời nhóm"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="confirmLeaveGroup(g)"
+                  [nzLoading]="leavingGroupUrl === g.url"
+                >
+                  🚪 Rời
+                </button>
+
+                <button
+                  nz-button
+                  nzSize="small"
+                  class="btn-remove"
+                  nz-popconfirm
+                  nzPopconfirmTitle="Xóa nhóm khỏi database?"
+                  nzOkText="Xóa"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="removeGroupFromDb(g)"
+                >
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </nz-table>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 2: LỊCH TRÌNH ĐĂNG BÀI HÔM NAY                                        -->
+  <!-- ========================================================================= -->
+  <div *ngIf="activeMainTab === 'schedule'" class="tab-pane-content">
+    <!-- Schedule Stats Summary Cards -->
+    <div class="stats-grid-row">
+      <div class="stat-box glass-card">
+        <div class="stat-icon-wrap icon-purple">📅</div>
+        <div class="stat-info">
+          <span class="stat-num">{{ posts.length }}</span>
+          <span class="stat-lbl">Tổng bài hôm nay</span>
+        </div>
+      </div>
+      <div class="stat-box glass-card">
+        <div class="stat-icon-wrap icon-blue">⏳</div>
+        <div class="stat-info">
+          <span class="stat-num text-blue">{{ postsQueuedCount }}</span>
+          <span class="stat-lbl">Đang chờ đăng</span>
+        </div>
+      </div>
+      <div class="stat-box glass-card">
+        <div class="stat-icon-wrap icon-green">✅</div>
+        <div class="stat-info">
+          <span class="stat-num text-green">{{ postsDoneCount }}</span>
+          <span class="stat-lbl">Đã đăng thành công</span>
+        </div>
+      </div>
+      <div class="stat-box glass-card">
+        <div class="stat-icon-wrap icon-orange">⏳</div>
+        <div class="stat-info">
+          <span class="stat-num text-orange">{{ postsPendingCount }}</span>
+          <span class="stat-lbl">Chờ admin duyệt</span>
+        </div>
+      </div>
+      <div class="stat-box glass-card">
+        <div class="stat-icon-wrap icon-red">❌</div>
+        <div class="stat-info">
+          <span class="stat-num text-red">{{ postsFailedCount }}</span>
+          <span class="stat-lbl">Bài lỗi / thất bại</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters & Action Bar -->
+    <div class="filters-card glass-card">
+      <div class="filters-left">
+        <div class="filter-item">
+          <nz-select [(ngModel)]="selectedPostStatus" (ngModelChange)="fetchPosts()" style="width: 220px;">
+            <nz-option *ngFor="let s of postStatusOptions" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
+          </nz-select>
+        </div>
+        <div class="filter-item">
+          <nz-select [(ngModel)]="selectedPostAccount" (ngModelChange)="fetchPosts()" style="width: 170px;">
+            <nz-option *ngFor="let a of postAccountOptions" [nzValue]="a.value" [nzLabel]="a.label"></nz-option>
+          </nz-select>
+        </div>
+        <button nz-button class="btn-outline" (click)="fetchPosts()">
+          🔄 Làm Mới
+        </button>
+      </div>
+
+      <div class="header-actions">
+        <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="planLoading">
+          🗓 Lên Lịch Hôm Nay (07:30)
+        </button>
+        <button nz-button class="btn-shopee" (click)="triggerRunDue()" [nzLoading]="runDueLoading">
+          ⚡ Chạy Đăng Các Bài Đến Giờ
+        </button>
+      </div>
+    </div>
+
+    <!-- Posts Table -->
+    <div class="table-container glass-card">
+      <nz-table
+        #postsTable
+        [nzData]="posts"
+        [nzLoading]="postsLoading"
+        [nzPageSize]="10"
+        nzShowPagination
+        nzShowSizeChanger
+      >
+        <thead>
+          <tr>
+            <th nzWidth="70px">ID</th>
+            <th nzWidth="140px">Giờ Dự Kiến</th>
+            <th nzWidth="100px">Tài Khoản</th>
+            <th>Nhóm Đăng / Loại</th>
+            <th>Sub-ID Theo Dõi</th>
+            <th nzWidth="130px">Trạng Thái Bài</th>
+            <th nzWidth="140px">Bình Luận Link</th>
+            <th nzWidth="140px">Link Bài FB</th>
+            <th nzWidth="130px">Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of postsTable.data">
+            <!-- ID -->
+            <td class="font-mono">#{{ p.id }}</td>
+
+            <!-- Scheduled At -->
+            <td>
+              <div class="time-col">
+                <span class="time-main">{{ p.scheduled_at * 1000 | date:'HH:mm' }}</span>
+                <span class="time-sub">{{ p.scheduled_at * 1000 | date:'dd/MM/yyyy' }}</span>
+              </div>
+            </td>
+
+            <!-- Account -->
+            <td>
+              <span class="acc-tag">{{ p.account }}</span>
+            </td>
+
+            <!-- Group & Kind -->
+            <td>
+              <div class="group-info-col">
+                <a [href]="p.group_url" target="_blank" class="group-name-link">
+                  {{ p.group_name || p.group_url }}
+                </a>
+                <span class="post-kind-tag" [ngClass]="p.kind === 'digest' ? 'kind-digest' : 'kind-deal'">
+                  {{ p.kind === 'digest' ? '🎟 Bản Tin' : '🛒 Bài Deal' }}
+                </span>
+              </div>
+            </td>
+
+            <!-- Sub-ID -->
+            <td>
+              <div class="subid-box" [title]="p.sub_id">
+                {{ p.sub_id || 'none' }}
+              </div>
+            </td>
+
+            <!-- Status -->
+            <td>
+              <span *ngIf="p.status === 'queued'" class="status-badge queued">⏳ Đang chờ</span>
+              <span *ngIf="p.status === 'done'" class="status-badge done">✅ Đã đăng</span>
+              <span *ngIf="p.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
+              <span *ngIf="p.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
+              <span *ngIf="p.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
+            </td>
+
+            <!-- Comment Status -->
+            <td>
+              <div class="comment-status-col">
+                <span *ngIf="p.comment_status === 'done'" class="text-success">💬 Đã comment</span>
+                <span *ngIf="p.comment_status === 'pending_approval'" class="text-warning">⏳ Hẹn retry duyệt</span>
+                <span *ngIf="p.comment_status === 'none'" class="text-muted">Không có</span>
+                <span *ngIf="p.comment_status === 'failed'" class="text-danger">Lỗi comment</span>
+              </div>
+            </td>
+
+            <!-- Link bài FB -->
+            <td>
+              <a *ngIf="p.post_url" [href]="p.post_url" target="_blank" class="post-fb-link" title="Xem bài viết trực tiếp trên Facebook">
+                🔗 Mở bài FB ↗
+              </a>
+              <span *ngIf="!p.post_url" class="text-muted text-xs">-</span>
+            </td>
+
+            <!-- Action -->
+            <td>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
+                  👁️ Chi tiết
+                </button>
+                <button
+                  *ngIf="p.status === 'queued' || p.status === 'failed'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-fire-post"
+                  (click)="runNowPost(p)"
+                  [nzLoading]="runningPostId === p.id"
+                  title="Đăng bài này ngay lập tức"
+                >
+                  ⚡ Đăng
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </nz-table>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 3: ĐĂNG BÀI THỦ CÔNG (MANUAL POST STUDIO)                             -->
+  <!-- ========================================================================= -->
+  <div *ngIf="activeMainTab === 'manual'" class="tab-pane-content">
+    <div class="manual-studio-grid">
+      <!-- CỘT TRÁI: CHỌN DEAL TỪ KHO HOẶC MẪU -->
+      <div class="studio-col-left glass-card">
+        <div class="studio-box-header">
+          <div class="header-title-wrap">
+            <span class="box-icon">🛍️</span>
+            <div>
+              <h3 class="box-title">Chọn Deal Từ Kho Sản Phẩm</h3>
+              <p class="box-subtitle">Chọn deal để tự động điền caption, tính % giảm giá, chèn link affiliate và ảnh.</p>
             </div>
-          </td>
+          </div>
+        </div>
 
-          <!-- Allow Link Switch -->
-          <td>
-            <nz-switch
-              [ngModel]="g.allow_link === 1"
-              (ngModelChange)="onAllowLinkChange(g, $event)"
-              nzCheckedChildren="Có"
-              nzUnCheckedChildren="Cấm"
-            ></nz-switch>
-          </td>
+        <!-- Deal Picker Search -->
+        <div class="deal-picker-controls">
+          <div class="search-input-wrap">
+            <input
+              nz-input
+              placeholder="🔍 Tìm deal theo tên, ngành hàng..."
+              [(ngModel)]="dealSearchQuery"
+              class="deal-search-input"
+            />
+          </div>
+          <button nz-button class="btn-outline" (click)="loadDealsForManual()" [nzLoading]="dealsLoading">
+            🔄 Tải lại deal
+          </button>
+        </div>
 
-          <!-- Success / Fails -->
-          <td>
-            <div class="stats-col">
-              <span class="text-success">Thành công: {{ g.success_count || 0 }}</span>
-              <span [ngClass]="(g.consecutive_fails || 0) > 0 ? 'text-danger' : 'text-muted'">
-                Lỗi chuỗi: {{ g.consecutive_fails || 0 }}
+        <!-- Selected Deal Preview Card -->
+        <div *ngIf="selectedDeal" class="selected-deal-card">
+          <div class="selected-deal-header">
+            <span class="badge-active-deal">✨ ĐÃ CHỌN DEAL NÀY</span>
+            <button nz-button nzSize="small" class="btn-clear-deal" (click)="clearDealSelection()">
+              ✕ Hủy chọn
+            </button>
+          </div>
+          <div class="selected-deal-body">
+            <img *ngIf="selectedDeal.image" [src]="selectedDeal.image" class="deal-thumb-preview" alt="Deal" />
+            <div class="selected-deal-info">
+              <div class="deal-title-text">{{ selectedDeal.title }}</div>
+              <div class="deal-price-row">
+                <span class="deal-price-sale">{{ selectedDeal.price | number }}đ</span>
+                <span class="deal-price-orig" *ngIf="selectedDeal.orig_price">{{ selectedDeal.orig_price | number }}đ</span>
+                <span class="deal-discount-badge" *ngIf="selectedDeal.discount">-{{ selectedDeal.discount }}%</span>
+              </div>
+              <div class="deal-meta-pills">
+                <span class="pill-meta">⭐ {{ selectedDeal.rating || 5.0 }}</span>
+                <span class="pill-meta">📦 Đã bán: {{ selectedDeal.sold || 0 }}</span>
+                <span class="pill-niche" *ngIf="selectedDeal.niche">{{ selectedDeal.niche }}</span>
+              </div>
+              <div class="deal-aff-link-truncate" *ngIf="selectedDeal.aff_url || selectedDeal.url">
+                🔗 {{ selectedDeal.aff_url || selectedDeal.url }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Deal Selector List -->
+        <nz-spin [nzSpinning]="dealsLoading">
+          <div class="quick-deals-list">
+            <div class="list-label">
+              <span>Danh sách deal đang hoạt động (Click để chọn nhanh):</span>
+              <span class="text-muted">({{ filteredAvailableDeals.length }} deal)</span>
+            </div>
+
+            <div class="deals-scrollable">
+              <div
+                *ngFor="let d of filteredAvailableDeals"
+                class="deal-item-row"
+                [class.deal-item-active]="selectedDealId === d.id"
+                (click)="onDealSelect(d.id)"
+              >
+                <img *ngIf="d.image" [src]="d.image" class="row-thumb" alt="thumb" />
+                <div class="row-details">
+                  <div class="row-title">{{ d.title }}</div>
+                  <div class="row-sub">
+                    <span class="row-price">{{ d.price | number }}đ</span>
+                    <span class="row-discount" *ngIf="d.discount">-{{ d.discount }}%</span>
+                    <span class="row-niche" *ngIf="d.niche">{{ d.niche }}</span>
+                  </div>
+                </div>
+                <button nz-button nzSize="small" class="btn-pick-deal" (click)="$event.stopPropagation(); onDealSelect(d.id)">
+                  {{ selectedDealId === d.id ? 'Đang chọn' : 'Áp dụng' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </nz-spin>
+      </div>
+
+      <!-- CỘT PHẢI: FORM ĐĂNG BÀI FACEBOOK & KẾT QUẢ -->
+      <div class="studio-col-right glass-card">
+        <div class="studio-box-header">
+          <div class="header-title-wrap">
+            <span class="box-icon">🚀</span>
+            <div>
+              <h3 class="box-title">Cấu Hình Bài Đăng Facebook</h3>
+              <p class="box-subtitle">Hỗ trợ đăng thật lên nhóm hoặc chạy thử (Dry Run) để test bóc tách link bài viết.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <!-- Account & Mode Row -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Tài Khoản Facebook (Cookie):</label>
+              <nz-select [(ngModel)]="manualForm.account" style="width: 100%;">
+                <nz-option *ngFor="let a of postAccountOptions" [nzValue]="a.value" [nzLabel]="a.label ? a.label : 'Mặc định'"></nz-option>
+              </nz-select>
+            </div>
+
+            <div class="form-group flex-1">
+              <label class="form-label">Chế Độ Đăng Bài:</label>
+              <div class="dry-run-switch-box">
+                <nz-switch
+                  [(ngModel)]="manualForm.dry_run"
+                  nzCheckedChildren="Chạy Thử (Dry Run)"
+                  nzUnCheckedChildren="Đăng Thật (Live FB)"
+                ></nz-switch>
+                <span class="mode-hint" [ngClass]="manualForm.dry_run ? 'hint-dry' : 'hint-live'">
+                  {{ manualForm.dry_run ? '🛡️ Kiểm tra giao diện, không tạo bài thật' : '⚡ Sẽ đăng thật lên nhóm Facebook!' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group URL + Quick Pick -->
+          <div class="form-group">
+            <label class="form-label">
+              <span>Link Group Facebook Cần Đăng:</span>
+              <span *ngIf="activeJoinedGroups.length > 0" class="quick-pick-label">Chọn từ nhóm đã vào:</span>
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input
+                nz-input
+                placeholder="https://www.facebook.com/groups/..."
+                [(ngModel)]="manualForm.group_url"
+                class="form-input-code"
+              />
+              <nz-select
+                *ngIf="activeJoinedGroups.length > 0"
+                style="width: 240px;"
+                nzPlaceHolder="Chọn từ nhóm có sẵn"
+                [ngModel]="manualForm.group_url"
+                (ngModelChange)="onManualGroupSelect($event)"
+              >
+                <nz-option
+                  *ngFor="let g of activeJoinedGroups"
+                  [nzValue]="g.url"
+                  [nzLabel]="(g.name || g.url) | slice:0:32"
+                ></nz-option>
+              </nz-select>
+            </div>
+          </div>
+
+          <!-- Caption -->
+          <div class="form-group">
+            <label class="form-label">
+              <span>Nội Dung Bài Đăng (Caption):</span>
+              <span class="text-muted text-xs">Đã định dạng chuyên nghiệp</span>
+            </label>
+            <textarea
+              nz-input
+              rows="5"
+              placeholder="Nhập nội dung bài viết..."
+              [(ngModel)]="manualForm.caption"
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <!-- Comment -->
+          <div class="form-group">
+            <label class="form-label">
+              <span>Nội Dung Bình Luận (Gắn Link Shopee / Telegram):</span>
+              <span class="text-muted text-xs">Bình luận đầu tiên dưới bài</span>
+            </label>
+            <textarea
+              nz-input
+              rows="3"
+              placeholder="Nhập link tiếp thị hoặc bình luận đính kèm..."
+              [(ngModel)]="manualForm.comment"
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <!-- Image Path / URL -->
+          <div class="form-group">
+            <label class="form-label">Đường Dẫn Hoặc Link Ảnh Đính Kèm (Tùy chọn):</label>
+            <input
+              nz-input
+              placeholder="Ví dụ: banner.jpg hoặc https://cf.shopee.vn/..."
+              [(ngModel)]="manualForm.image_path"
+            />
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="studio-actions-footer">
+          <button
+            nz-button
+            class="btn-submit-test"
+            (click)="runManualPost()"
+            [nzLoading]="manualLoading"
+          >
+            🚀 Bắt Đầu Đăng Bài Ngay (Playwright)
+          </button>
+        </div>
+
+        <!-- Result Card -->
+        <div *ngIf="manualLoading" class="test-loading-box">
+          <nz-spin nzSimple></nz-spin>
+          <p class="mt-2">Đang khởi chạy trình duyệt Playwright và thực hiện đăng bài lên Facebook...</p>
+        </div>
+
+        <div *ngIf="manualResult" class="test-result-card" [ngClass]="manualResult.success ? 'result-success' : 'result-error'">
+          <div class="result-header">
+            <span class="result-status-title">
+              {{ manualResult.success ? '🎉 Kết Quả Đăng Bài Hoàn Tất' : '⚠️ Có Lỗi Xảy Ra Khi Đăng Bài' }}
+            </span>
+            <span class="badge-mode">{{ manualResult.dry_run ? 'CHẾ ĐỘ DRY-RUN' : 'LIVE FB' }}</span>
+          </div>
+
+          <div class="result-body">
+            <div class="result-row">
+              <span class="label">Trạng thái bài đăng:</span>
+              <span class="val font-semibold">
+                {{ manualResult.status === 'done' ? '✅ Thành công' : (manualResult.status === 'pending_approval' ? '⏳ Chờ Admin duyệt' : manualResult.status) }}
               </span>
             </div>
-          </td>
 
-          <!-- Actions: Approval + Leave + Remove -->
-          <td>
-            <div class="actions-cell">
-              <button
-                *ngIf="g.status === 'candidate' || g.status === 'cooling_down'"
-                nz-button
-                nzSize="small"
-                class="btn-approve"
-                (click)="updateStatus(g, 'joined')"
-              >
-                Vào Nhóm
-              </button>
-              <button
-                *ngIf="g.status === 'candidate'"
-                nz-button
-                nzSize="small"
-                class="btn-skip"
-                (click)="updateStatus(g, 'skip')"
-              >
-                Bỏ qua
-              </button>
-              <span *ngIf="g.status === 'joined'" class="status-badge joined">Đã tham gia</span>
-              <span *ngIf="g.status === 'cooling_down'" class="status-badge cooling">Tạm phạt 7 ngày</span>
-              <span *ngIf="g.status === 'banned'" class="status-badge banned">Bị chặn</span>
+            <div class="result-row" *ngIf="manualResult.comment_status">
+              <span class="label">Bình luận Link:</span>
+              <span class="val">
+                {{ manualResult.comment_status === 'done' ? '💬 Đã bình luận thành công' : (manualResult.comment_status === 'pending_approval' ? '⏳ Hẹn retry duyệt' : manualResult.comment_status) }}
+              </span>
+            </div>
 
-              <!-- Leave Group Button -->
-              <button
-                *ngIf="g.status === 'joined' || g.status === 'approved' || g.status === 'cooling_down'"
-                nz-button
-                nzSize="small"
-                class="btn-leave"
-                nz-popconfirm
-                nzPopconfirmTitle="Xác nhận rời nhóm này trên Facebook?"
-                nzOkText="Rời nhóm"
-                nzCancelText="Hủy"
-                (nzOnConfirm)="confirmLeaveGroup(g)"
-                [nzLoading]="leavingGroupUrl === g.url"
-              >
-                🚪 Rời
-              </button>
+            <!-- LIVE FACEBOOK PERMALINK -->
+            <div class="result-row permalink-row" *ngIf="manualResult.post_url">
+              <span class="label font-bold text-success">🔗 Link bài đăng Facebook:</span>
+              <div class="permalink-content">
+                <a [href]="manualResult.post_url" target="_blank" class="post-live-link">
+                  {{ manualResult.post_url }} ↗
+                </a>
+                <button nz-button nzSize="small" (click)="copyLink(manualResult.post_url)">
+                  📋 Sao chép link
+                </button>
+              </div>
+            </div>
 
-              <!-- Remove from DB Button -->
+            <div class="result-row" *ngIf="!manualResult.post_url && !manualResult.dry_run">
+              <span class="label text-muted">Link bài đăng:</span>
+              <span class="val text-muted font-italic">Chưa bắt được permalink (bài có thể đang chờ admin duyệt hoặc cần reload).</span>
+            </div>
+
+            <div class="result-msg">
+              <b>Thông báo từ Bot:</b> {{ manualResult.message }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 4: TỰ ĐỘNG HÓA (AUTO PILOT COMMAND CENTER)                           -->
+  <!-- ========================================================================= -->
+  <div *ngIf="activeMainTab === 'auto'" class="tab-pane-content">
+    <!-- Hero Command Banner -->
+    <div class="auto-pilot-hero glass-card">
+      <div class="hero-left">
+        <div class="hero-badge">⚡ AUTO PILOT ENGINE</div>
+        <h2 class="hero-title">Khởi Động Toàn Bộ Chu Trình Săn Deal & Đăng Bài</h2>
+        <p class="hero-desc">
+          Chỉ với 1 thao tác bấm, hệ thống sẽ thực thi trọn gói: Quét & cập nhật deal mới nhất từ sàn Shopee, dùng AI phân bổ bài đăng vào các group theo ngách phù hợp, và tự động khởi động Playwright đăng các bài đúng khung giờ vàng.
+        </p>
+        <div class="hero-action-buttons">
+          <button nz-button class="btn-run-full-pipeline" (click)="runFullPipelineAction()" [nzLoading]="pipelineLoading">
+            🔄 Khởi Chạy Full Pipeline (1-Chạm)
+          </button>
+          <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="planLoading">
+            🗓 Lập Lịch Phân Bổ Deal Hôm Nay
+          </button>
+          <button nz-button class="btn-shopee" (click)="triggerRunDue()" [nzLoading]="runDueLoading">
+            ⚡ Chạy Đăng Các Bài Đến Giờ
+          </button>
+        </div>
+      </div>
+      <div class="hero-right">
+        <div class="pipeline-status-card">
+          <div class="card-status-label">Trạng Thái Chu Trình:</div>
+          <div class="card-status-val">
+            <span class="status-pulse-dot"></span>
+            <span>Hệ Thống Đang Trực Sẵn Sàng</span>
+          </div>
+          <div class="card-status-stats">
+            <div>Tổng nhóm hoạt động: <b>{{ groups.length }}</b></div>
+            <div>Bài đã lập lịch: <b>{{ posts.length }}</b></div>
+            <div>Chờ đăng kế tiếp: <b>{{ postsQueuedCount }}</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Result Banner -->
+    <div *ngIf="pipelineResult" class="pipeline-result-box glass-card">
+      <div class="res-title">🎉 Kết Quả Kích Hoạt Pipeline:</div>
+      <div class="res-msg">{{ pipelineResult.message }}</div>
+      <div class="res-stats-chips">
+        <span class="chip-item">Deal mới thêm: +{{ pipelineResult.deals_added || 0 }}</span>
+        <span class="chip-item">Deal cập nhật: {{ pipelineResult.deals_updated || 0 }}</span>
+        <span class="chip-item">Bài lên lịch: {{ pipelineResult.posts_planned || 0 }}</span>
+      </div>
+    </div>
+
+    <!-- 3-Step Architecture Flow -->
+    <div class="pipeline-steps-grid">
+      <div class="step-card glass-card">
+        <div class="step-badge">BƯỚC 1</div>
+        <div class="step-icon">🛒</div>
+        <h4 class="step-title">Quét & Lọc Deal Hot</h4>
+        <p class="step-desc">
+          Tự động lấy deal từ kho & Shopee Affiliate, kiểm tra còn hiệu lực, tính điểm score và gán ngách hàng phù hợp.
+        </p>
+      </div>
+
+      <div class="step-arrow">➔</div>
+
+      <div class="step-card glass-card">
+        <div class="step-badge">BƯỚC 2</div>
+        <div class="step-icon">🗓️</div>
+        <h4 class="step-title">AI Phân Bổ & Lên Lịch</h4>
+        <p class="step-desc">
+          Planner ghép deal vào đúng group theo ngành, tạo sub-id theo dõi đơn, sinh caption hấp dẫn và rải giờ ngẫu nhiên.
+        </p>
+      </div>
+
+      <div class="step-arrow">➔</div>
+
+      <div class="step-card glass-card">
+        <div class="step-badge">BƯỚC 3</div>
+        <div class="step-icon">⚡</div>
+        <h4 class="step-title">Playwright Thực Thi Đăng</h4>
+        <p class="step-desc">
+          Mở trình duyệt theo cookie từng nick, đăng caption & ảnh lên nhóm, sau đó tự bình luận link tiếp thị và Telegram.
+        </p>
+      </div>
+    </div>
+
+    <!-- Timeline Các Bài Sắp Tới Hôm Nay -->
+    <div class="timeline-section glass-card">
+      <div class="timeline-header">
+        <div>
+          <h3 class="section-title">Timeline Bài Đăng Sắp Tới Trong Ngày</h3>
+          <p class="section-subtitle">Danh sách các bài viết được phân bổ theo thứ tự thời gian trong ngày hôm nay.</p>
+        </div>
+        <button nz-button class="btn-outline" (click)="fetchPosts()">
+          🔄 Làm mới tiến độ
+        </button>
+      </div>
+
+      <div *ngIf="todayTimelinePosts.length === 0" class="timeline-empty">
+        <span style="font-size: 28px;">📭</span>
+        <p>Hôm nay chưa có bài viết nào được lên lịch.</p>
+        <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="planLoading">
+          🗓 Lập lịch bài đăng ngay
+        </button>
+      </div>
+
+      <div *ngIf="todayTimelinePosts.length > 0" class="timeline-list">
+        <div *ngFor="let item of todayTimelinePosts" class="timeline-item" [ngClass]="item.status">
+          <div class="timeline-time-badge">
+            <span class="time-hhmm">{{ item.scheduled_at * 1000 | date:'HH:mm' }}</span>
+            <span class="time-ddmm">{{ item.scheduled_at * 1000 | date:'dd/MM' }}</span>
+          </div>
+
+          <div class="timeline-dot-connector">
+            <div class="dot-node" [ngClass]="item.status"></div>
+            <div class="line-connector"></div>
+          </div>
+
+          <div class="timeline-content-card">
+            <div class="timeline-card-header">
+              <div class="group-target">
+                <span class="acc-pill-sm">{{ item.account }}</span>
+                <a [href]="item.group_url" target="_blank" class="group-target-link">
+                  {{ item.group_name || item.group_url }} ↗
+                </a>
+              </div>
+              <div class="item-status">
+                <span *ngIf="item.status === 'queued'" class="status-badge queued">⏳ Đang chờ</span>
+                <span *ngIf="item.status === 'done'" class="status-badge done">✅ Đã đăng</span>
+                <span *ngIf="item.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
+                <span *ngIf="item.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
+                <span *ngIf="item.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
+              </div>
+            </div>
+
+            <div class="timeline-caption-preview">
+              {{ item.caption | slice:0:140 }}...
+            </div>
+
+            <div class="timeline-footer-row">
+              <span class="subid-pill">Sub-ID: <code>{{ item.sub_id || 'none' }}</code></span>
+              <a *ngIf="item.post_url" [href]="item.post_url" target="_blank" class="post-fb-link">
+                🔗 Xem bài FB ↗
+              </a>
               <button
+                *ngIf="item.status === 'queued' || item.status === 'failed'"
                 nz-button
                 nzSize="small"
-                class="btn-remove"
-                nz-popconfirm
-                nzPopconfirmTitle="Xóa nhóm khỏi database?"
-                nzOkText="Xóa"
-                nzCancelText="Hủy"
-                (nzOnConfirm)="removeGroupFromDb(g)"
+                class="btn-fire-post"
+                (click)="runNowPost(item)"
+                [nzLoading]="runningPostId === item.id"
               >
-                🗑️
+                ⚡ Đăng ngay
               </button>
             </div>
-          </td>
-        </tr>
-      </tbody>
-    </nz-table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: CHI TIẾT BÀI VIẾT LÊN LỊCH                                         -->
+  <!-- ========================================================================= -->
+  <nz-modal
+    [(nzVisible)]="previewModalVisible"
+    nzTitle="Chi Tiết Bài Viết Lên Lịch"
+    (nzOnCancel)="closePreview()"
+    [nzFooter]="null"
+    nzWidth="680px"
+  >
+    <ng-container *nzModalContent>
+      <div *ngIf="selectedPostForPreview" class="preview-modal-body">
+        <div *ngIf="selectedPostForPreview.post_url" class="preview-fb-banner">
+          <div class="fb-banner-left">
+            <span class="fb-badge">FACEBOOK PERMALINK</span>
+            <div class="fb-url-truncate">{{ selectedPostForPreview.post_url }}</div>
+          </div>
+          <div class="fb-banner-actions">
+            <a [href]="selectedPostForPreview.post_url" target="_blank" class="btn-visit-fb">
+              🔗 Mở bài viết trên Facebook ↗
+            </a>
+            <button nz-button nzSize="small" (click)="copyLink(selectedPostForPreview.post_url)">
+              📋 Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="preview-meta">
+          <div><b>Tài khoản:</b> <span class="acc-pill-sm">{{ selectedPostForPreview.account }}</span></div>
+          <div><b>Thời gian hẹn:</b> {{ selectedPostForPreview.scheduled_at * 1000 | date:'HH:mm dd/MM/yyyy' }}</div>
+          <div><b>Nhóm đăng:</b> <a [href]="selectedPostForPreview.group_url" target="_blank">{{ selectedPostForPreview.group_url }} ↗</a></div>
+          <div><b>Mã Sub-ID:</b> <code>{{ selectedPostForPreview.sub_id }}</code></div>
+        </div>
+
+        <div class="preview-section">
+          <h4>Nội dung Caption:</h4>
+          <div class="caption-box">{{ selectedPostForPreview.caption }}</div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.comment" class="preview-section">
+          <h4>Bình luận gắn Link Affiliate & Phễu Telegram:</h4>
+          <div class="comment-box">{{ selectedPostForPreview.comment }}</div>
+        </div>
+
+        <div *ngIf="extractAffLink(selectedPostForPreview.comment || selectedPostForPreview.caption) as affLink" class="preview-section">
+          <h4>🔗 Link Affiliate trong bài:</h4>
+          <div class="aff-link-preview-box">
+            <span class="aff-link-text">{{ affLink }}</span>
+            <div style="display: flex; gap: 8px;">
+              <button nz-button nzSize="small" (click)="copyLink(affLink)">📋 Sao chép</button>
+              <a [href]="affLink" target="_blank" nz-button nzSize="small">↗ Mở thử</a>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.error" class="preview-section text-danger">
+          <h4>Lỗi ghi nhận:</h4>
+          <div>{{ selectedPostForPreview.error }}</div>
+        </div>
+
+        <div *ngIf="selectedPostForPreview.status === 'queued' || selectedPostForPreview.status === 'failed'" class="preview-actions">
+          <button nz-button nzType="primary" class="btn-fire-modal" (click)="runNowPost(selectedPostForPreview)" [nzLoading]="runningPostId === selectedPostForPreview.id">
+            ⚡ Đăng Bài Này Ngay Lập Tức Lên Facebook
+          </button>
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
 
   <!-- Scan Groups Modal -->
   <nz-modal
@@ -304,6 +1069,292 @@
           *ngIf="scannedGroups.length === 0 && scannedMessage && !scanLoading"
           nzNotFoundContent="Không tìm thấy group nào."
         ></nz-empty>
+      </div>
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal Auto Join Group Batch -->
+  <nz-modal
+    [(nzVisible)]="autoJoinModalVisible"
+    nzTitle="🤖 Tự Động Tham Gia Hội Nhóm Facebook (Auto Join)"
+    (nzOnCancel)="closeAutoJoinModal()"
+    [nzFooter]="null"
+    nzWidth="680px"
+  >
+    <ng-container *nzModalContent>
+      <div class="auto-join-modal-body">
+        <p class="modal-desc">
+          Bot sẽ sử dụng tài khoản Facebook đã chọn, tự động mở từng nhóm ở trạng thái chờ duyệt (candidate), click <b>Tham gia nhóm</b>, tự động tích đồng ý các quy tắc nhóm và gửi yêu cầu gia nhập.
+        </p>
+
+        <!-- Form cấu hình -->
+        <div class="form-grid">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Chọn Tài Khoản Facebook Thực Hiện:</label>
+              <nz-select [(ngModel)]="autoJoinAccount" style="width: 100%;">
+                <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? opt.label : 'Mặc định'"></nz-option>
+              </nz-select>
+            </div>
+
+            <div class="form-group flex-1">
+              <label class="form-label">Số Lượng Nhóm Tối Đa Cần Join Đợt Này:</label>
+              <nz-select [(ngModel)]="autoJoinLimit" style="width: 100%;">
+                <nz-option [nzValue]="3" nzLabel="3 nhóm (Khuyên dùng để tránh checkpoint)"></nz-option>
+                <nz-option [nzValue]="5" nzLabel="5 nhóm (Mặc định an toàn)"></nz-option>
+                <nz-option [nzValue]="10" nzLabel="10 nhóm (Giãn cách 4-7 giây)"></nz-option>
+                <nz-option [nzValue]="20" nzLabel="20 nhóm"></nz-option>
+              </nz-select>
+            </div>
+          </div>
+
+          <div class="safety-tip-box">
+            🛡️ <b>Cơ chế an toàn:</b> Bot tự động giãn cách ngẫu nhiên 4-7 giây giữa các nhóm để mô phỏng thao tác người thật, phòng ngừa checkpoint tài khoản.
+          </div>
+
+          <!-- Thông tin số lượng candidate hiện có -->
+          <div class="candidate-summary-box">
+            <span>Hiện có: <b class="text-cyan">{{ candidateGroups.length }}</b> nhóm ở trạng thái chờ tham gia (candidate).</span>
+          </div>
+        </div>
+
+        <div class="modal-footer-actions">
+          <button nz-button class="btn-cancel" (click)="closeAutoJoinModal()" [disabled]="autoJoinLoading">
+            Đóng
+          </button>
+          <button
+            nz-button
+            class="btn-submit-autojoin"
+            (click)="runAutoJoinBatch()"
+            [nzLoading]="autoJoinLoading"
+            [disabled]="candidateGroups.length === 0"
+          >
+            🚀 Bắt Đầu Auto Join ({{ autoJoinLimit }} nhóm)
+          </button>
+        </div>
+
+        <!-- Loading spinner -->
+        <div *ngIf="autoJoinLoading" class="autojoin-loading-box">
+          <nz-spin nzSimple></nz-spin>
+          <p class="mt-2">Đang duyệt và tham gia các nhóm Facebook... Vui lòng không đóng cửa sổ này.</p>
+        </div>
+
+        <!-- Kết quả sau khi chạy -->
+        <div *ngIf="autoJoinResult" class="autojoin-result-card" [ngClass]="autoJoinResult.success ? 'result-success' : 'result-error'">
+          <div class="result-header">
+            <span class="result-status-title">
+              {{ autoJoinResult.success ? '🎉 Quá Trình Auto Join Hoàn Tất' : '⚠️ Có Lỗi Xảy Ra' }}
+            </span>
+            <span class="badge-total">Tổng: {{ autoJoinResult.total || 0 }} nhóm</span>
+          </div>
+
+          <div class="result-stats-row">
+            <div class="stat-badge stat-joined">
+              <span class="num">{{ autoJoinResult.joined || 0 }}</span>
+              <span class="lbl">Đã Tham Gia Trực Tiếp</span>
+            </div>
+            <div class="stat-badge stat-pending">
+              <span class="num">{{ autoJoinResult.pending || 0 }}</span>
+              <span class="lbl">Chờ Admin Phê Duyệt</span>
+            </div>
+            <div class="stat-badge stat-failed">
+              <span class="num">{{ autoJoinResult.failed || 0 }}</span>
+              <span class="lbl">Không Thành Công</span>
+            </div>
+          </div>
+
+          <div class="result-msg">
+            <b>Chi tiết:</b> {{ autoJoinResult.message }}
+          </div>
+
+          <!-- Bảng chi tiết kết quả từng group -->
+          <div *ngIf="autoJoinResult.results && autoJoinResult.results.length > 0" class="sub-table-wrap">
+            <table class="detail-results-table">
+              <thead>
+                <tr>
+                  <th>URL Nhóm</th>
+                  <th style="width: 130px;">Kết Quả</th>
+                  <th>Phản Hồi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of autoJoinResult.results">
+                  <td class="font-mono text-xs"><a [href]="r.url" target="_blank">{{ r.url }} ↗</a></td>
+                  <td>
+                    <span *ngIf="r.success && r.status !== 'pending_approval'" class="text-success font-semibold">✅ Joined</span>
+                    <span *ngIf="r.success && r.status === 'pending_approval'" class="text-warning font-semibold">⏳ Chờ duyệt</span>
+                    <span *ngIf="!r.success" class="text-danger font-semibold">❌ Thất bại</span>
+                  </td>
+                  <td class="text-xs text-muted">{{ r.message }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal Quét & Đánh Giá Nhóm Theo Ngành -->
+  <nz-modal
+    [(nzVisible)]="nicheSearchModalVisible"
+    nzTitle="🎯 Quét & Đánh Giá Tương Tác Nhóm Facebook Theo Ngành"
+    [nzWidth]="980"
+    (nzOnCancel)="closeNicheSearchModal()"
+    [nzFooter]="null"
+  >
+    <ng-container *nzModalContent>
+      <div class="niche-modal-body">
+        <!-- Control Form -->
+        <div class="niche-config-grid">
+          <div class="config-col">
+            <label class="form-label">Tài khoản quét:</label>
+            <nz-select [(ngModel)]="nicheSearchAccount" style="width: 100%;">
+              <nz-option *ngFor="let opt of accountOptions.slice(1)" [nzValue]="opt.value" [nzLabel]="'👤 ' + opt.label"></nz-option>
+            </nz-select>
+          </div>
+
+          <div class="config-col">
+            <label class="form-label">Nhóm ngành hàng:</label>
+            <nz-select [(ngModel)]="nicheSearchCategory" (ngModelChange)="onNichePresetChange($event)" style="width: 100%;">
+              <nz-option *ngFor="let p of nichePresets" [nzValue]="p.value" [nzLabel]="p.label"></nz-option>
+            </nz-select>
+          </div>
+
+          <div class="config-col" style="grid-column: span 2;">
+            <div class="kw-header-row">
+              <label class="form-label" style="margin-bottom: 0;">Từ khóa tìm kiếm trên Facebook:</label>
+              <span class="recommend-hint-lbl">💡 Bấm vào từ khóa gợi ý bên dưới để chọn nhanh:</span>
+            </div>
+            <input nz-input [(ngModel)]="nicheSearchKeyword" placeholder="Nhập từ khóa Facebook (ví dụ: hội phối đồ nam, review mỹ phẩm)..." />
+
+            <!-- Gợi ý từ khóa hot theo ngành hàng -->
+            <div class="recommended-chips-wrap" *ngIf="recommendedKeywords.length > 0">
+              <span class="rec-prefix">Gợi ý từ khóa:</span>
+              <div class="rec-chips-list">
+                <button
+                  type="button"
+                  *ngFor="let kw of recommendedKeywords"
+                  class="rec-chip"
+                  [class.active]="nicheSearchKeyword.trim().toLowerCase() === kw.trim().toLowerCase()"
+                  (click)="selectRecommendedKeyword(kw)"
+                  nz-tooltip
+                  nzTooltipTitle="Bấm để chọn từ khóa này"
+                >
+                  <span class="rec-icon">🔍</span> {{ kw }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Thresholds -->
+          <div class="config-col">
+            <label class="form-label">Số thành viên tối thiểu:</label>
+            <nz-select [(ngModel)]="nicheMinMembers" style="width: 100%;">
+              <nz-option [nzValue]="1000" nzLabel=">= 1,000 thành viên"></nz-option>
+              <nz-option [nzValue]="3000" nzLabel=">= 3,000 thành viên"></nz-option>
+              <nz-option [nzValue]="5000" nzLabel=">= 5,000 thành viên (Khuyên dùng)"></nz-option>
+              <nz-option [nzValue]="10000" nzLabel=">= 10,000 thành viên (Nhóm lớn)"></nz-option>
+              <nz-option [nzValue]="20000" nzLabel=">= 20,000 thành viên"></nz-option>
+            </nz-select>
+          </div>
+
+          <div class="config-col">
+            <label class="form-label">Tần suất bài viết tối thiểu:</label>
+            <nz-select [(ngModel)]="nicheMinPostsPerDay" style="width: 100%;">
+              <nz-option [nzValue]="1" nzLabel=">= 1 bài viết/ngày"></nz-option>
+              <nz-option [nzValue]="3" nzLabel=">= 3 bài viết/ngày (Khuyên dùng)"></nz-option>
+              <nz-option [nzValue]="5" nzLabel=">= 5 bài viết/ngày (Sôi nổi)"></nz-option>
+              <nz-option [nzValue]="10" nzLabel=">= 10 bài viết/ngày (Rất sôi nổi)"></nz-option>
+            </nz-select>
+          </div>
+
+          <div class="config-col" style="grid-column: span 2; display: flex; gap: 24px; align-items: center; margin-top: 6px;">
+            <label nz-checkbox [(ngModel)]="nicheOnlyPublic" style="color: #fff;">
+              Chỉ quét Nhóm Công Khai (Public Group)
+            </label>
+            <label nz-checkbox [(ngModel)]="nicheAutoJoin" style="color: #38bdf8;">
+              ⚡ Tự động gửi yêu cầu Join các nhóm đạt chuẩn ngay
+            </label>
+          </div>
+        </div>
+
+        <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+          <button nz-button class="btn-start-search" (click)="startNicheSearch()" [nzLoading]="nicheSearchLoading">
+            🚀 Bắt Đầu Quét & Đánh Giá Nhóm
+          </button>
+        </div>
+
+        <!-- Evaluation Results Area -->
+        <div *ngIf="nicheSearchLoading" class="modal-loading-box">
+          <nz-spin nzTip="Đang mở Facebook Search, cuộn trang & soi tương tác số bài đăng và thành viên..."></nz-spin>
+        </div>
+
+        <div *ngIf="!nicheSearchLoading && evaluatedGroups.length > 0" class="evaluated-results-wrap">
+          <div class="results-header-banner">
+            <div>
+              <span class="banner-title">📊 Kết Quả Đánh Giá Tương Tác</span>
+              <p class="banner-sub">{{ nicheSearchResultMessage }}</p>
+            </div>
+            <button nz-button class="btn-import-qualified" (click)="importAllQualifiedEvaluated()" [nzLoading]="importingEvaluated">
+              📥 Nhập Tất Cả Nhóm Đạt Chuẩn Vào Bot
+            </button>
+          </div>
+
+          <div class="evaluated-table-scroll">
+            <table class="evaluated-table">
+              <thead>
+                <tr>
+                  <th>Tên Nhóm</th>
+                  <th style="width: 110px;">Quyền</th>
+                  <th style="width: 120px;">Thành Viên</th>
+                  <th style="width: 140px;">Tần Suất Bài</th>
+                  <th style="width: 170px;">Đánh Giá Chuẩn</th>
+                  <th style="width: 110px;">Trạng Thái</th>
+                  <th style="width: 110px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let eg of evaluatedGroups" [class.row-unqualified]="!eg.is_qualified">
+                  <td>
+                    <div class="eg-name-box">
+                      <a [href]="eg.url" target="_blank" class="eg-link">{{ eg.name }} ↗</a>
+                      <span class="eg-niche-tag">{{ eg.niche }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span [class]="eg.privacy === 'public' ? 'badge-privacy-public' : 'badge-privacy-private'">
+                      {{ eg.privacy === 'public' ? 'Công khai' : 'Riêng tư' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="eg-members">👥 {{ eg.members | number }} TV</span>
+                  </td>
+                  <td>
+                    <span class="eg-activity">⚡ {{ eg.activity_text || (eg.posts_per_day + ' bài/ngày') }}</span>
+                  </td>
+                  <td>
+                    <span [class]="eg.is_qualified ? 'badge-eval-pass' : 'badge-eval-fail'" nz-tooltip [nzTooltipTitle]="eg.evaluation_note">
+                      {{ eg.is_qualified ? '✅ Đạt chuẩn' : '❌ Chưa đạt' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span *ngIf="eg.status === 'joined'" class="status-badge-joined">Đã vào</span>
+                    <span *ngIf="eg.status === 'pending_approval'" class="status-badge-pending">Chờ duyệt</span>
+                    <span *ngIf="eg.status === 'candidate'" class="status-badge-candidate">Chưa vào</span>
+                  </td>
+                  <td>
+                    <button *ngIf="eg.status === 'candidate'" nz-button nzSize="small" class="btn-single-join"
+                            (click)="joinEvaluatedGroup(eg)" [nzLoading]="joiningEvaluatedUrl === eg.url">
+                      Tham gia
+                    </button>
+                    <span *ngIf="eg.status !== 'candidate'" class="text-muted text-xs">Đã xử lý</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </ng-container>
   </nz-modal>

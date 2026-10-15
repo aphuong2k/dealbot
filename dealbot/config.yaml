@@ -1,5 +1,7 @@
 dry_run: true
 niches:
+- Thời Trang Nam
+- Thời Trang Nữ
 - gia dụng
 - mẹ và bé
 - mỹ phẩm
@@ -17,11 +19,11 @@ digest_windows:
   - 20
   - 0
 deals:
-  min_discount: 25
-  min_rating: 4.5
-  min_sold: 100
-  min_score: 60
-  top_per_day: 12
+  min_discount: 15
+  min_rating: 4.2
+  min_sold: 50
+  min_score: 50
+  top_per_day: 15
 posting:
   active_hours:
   - 8

@@ -349,22 +349,149 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
 }
 
+/* Modal & Modal Confirm (Dark Theme Overrides) */
 .ant-modal-content {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  color: var(--text-main) !important;
+  background: #121827 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--radius-lg) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.75) !important;
 }
+
 .ant-modal-header {
   background: transparent !important;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
+
 .ant-modal-title {
-  color: var(--text-main) !important;
+  color: #ffffff !important;
   font-family: var(--font-heading);
+  font-size: 17px !important;
+  font-weight: 700 !important;
 }
+
 .ant-modal-close-x {
-  color: var(--text-secondary);
+  color: #94a3b8 !important;
+}
+
+.ant-modal-close-x:hover {
+  color: #ffffff !important;
+}
+
+.ant-modal-footer {
+  background: transparent !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Modal Confirm & Alert Dialogs */
+.ant-modal-confirm .ant-modal-body {
+  padding: 28px 28px 24px !important;
+}
+
+.ant-modal-confirm-body .ant-modal-confirm-title,
+.ant-modal-confirm-body .ant-modal-confirm-title *,
+.ant-modal-confirm .ant-modal-confirm-title,
+.ant-modal-confirm .ant-modal-confirm-title * {
+  color: #ffffff !important;
+  font-family: var(--font-heading);
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  margin-bottom: 10px !important;
+}
+
+.ant-modal-confirm-body .ant-modal-confirm-content,
+.ant-modal-confirm-body .ant-modal-confirm-content *,
+.ant-modal-confirm .ant-modal-confirm-content,
+.ant-modal-confirm .ant-modal-confirm-content * {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+.ant-modal-confirm-body > .anticon + .ant-modal-confirm-title {
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.ant-modal-confirm-body > .anticon {
+  font-size: 26px !important;
+  margin-right: 16px !important;
+  float: left !important;
+}
+
+.ant-modal-confirm-body > .anticon-question-circle {
+  color: #f59e0b !important;
+}
+
+.ant-modal-confirm-body > .anticon-exclamation-circle {
+  color: #ef4444 !important;
+}
+
+.ant-modal-confirm-body > .anticon-info-circle {
+  color: #38bdf8 !important;
+}
+
+.ant-modal-confirm-body > .anticon-check-circle {
+  color: #10b981 !important;
+}
+
+.ant-modal-confirm-btns {
+  margin-top: 24px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.ant-modal-confirm-btns .ant-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  height: 38px !important;
+  padding: 0 18px !important;
+  font-size: 14px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Nút Cancel / Hủy bỏ trong popup */
+.ant-modal-confirm-btns .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #e2e8f0 !important;
+}
+
+.ant-modal-confirm-btns .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+/* Nút Ok / Confirm nguy hiểm (Xóa, Dọn dẹp) */
+.ant-modal-confirm-btns .ant-btn-dangerous {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-dangerous:hover {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%) !important;
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+/* Nút Ok / Confirm thông thường */
+.ant-modal-confirm-btns .ant-btn-primary:not(.ant-btn-dangerous) {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35) !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-primary:not(.ant-btn-dangerous):hover {
+  background: linear-gradient(135deg, #38bdf8 0%, #0369a1 100%) !important;
+  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.5) !important;
+  transform: translateY(-1px);
 }
 
 /* Pulse Animation */

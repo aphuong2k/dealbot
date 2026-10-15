@@ -70,6 +70,23 @@ class SyncNichesRequest(BaseModel):
 class LeaveGroupRequest(BaseModel):
     group_url: str
 
+class JoinGroupRequest(BaseModel):
+    group_url: str
+
+class BatchJoinGroupsRequest(BaseModel):
+    account: str
+    group_urls: Optional[List[str]] = None
+    limit: Optional[int] = 5
+
+class TestPostRequest(BaseModel):
+    account: str
+    group_url: str
+    caption: str
+    comment: Optional[str] = ""
+    dry_run: bool = False
+    image_path: Optional[str] = None
+
+
 class ImportGroupItem(BaseModel):
     url: str
     name: Optional[str] = ""
@@ -77,9 +94,25 @@ class ImportGroupItem(BaseModel):
     status: Optional[str] = "joined"
     kind: Optional[str] = "dealhunt"
     niche: Optional[str] = "săn sale"
+    members: Optional[int] = 0
+    posts_per_day: Optional[float] = 0.0
+    activity_text: Optional[str] = ""
+    privacy: Optional[str] = "public"
+    priority_score: Optional[float] = 100.0
 
 class ImportGroupsRequest(BaseModel):
     groups: List[ImportGroupItem]
+
+class SearchNicheGroupsRequest(BaseModel):
+    account: str
+    keyword: str
+    niche: Optional[str] = ""
+    min_members: Optional[int] = 5000
+    min_posts_per_day: Optional[float] = 3.0
+    only_public: Optional[bool] = True
+    auto_join: Optional[bool] = False
+    max_results: Optional[int] = 15
+    max_scroll: Optional[int] = 6
 
 class ShopeeOpenApiConfig(BaseModel):
     app_id: str
@@ -100,6 +133,7 @@ def get_stats():
 
     total_deals = db.q("SELECT COUNT(*) c FROM deals", one=True)["c"]
     new_deals = db.q("SELECT COUNT(*) c FROM deals WHERE status='new'", one=True)["c"]
+    posted_deals = db.q("SELECT COUNT(*) c FROM deals WHERE status='posted'", one=True)["c"]
 
     total_groups = db.q("SELECT COUNT(*) c FROM groups", one=True)["c"]
     active_groups = db.q("SELECT COUNT(*) c FROM groups WHERE status IN ('joined','approved')", one=True)["c"]
@@ -133,7 +167,8 @@ def get_stats():
     return {
         "deals": {
             "total": total_deals,
-            "new": new_deals
+            "new": new_deals,
+            "posted": posted_deals
         },
         "groups": {
             "total": total_groups,
@@ -159,36 +194,117 @@ def list_deals(
     niche: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    is_vip: Optional[bool] = None,
+    is_mall: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0
 ):
-    """Danh sách deals cào được."""
-    sql = "SELECT * FROM deals WHERE 1=1"
+    """Danh sách deals cào được, kèm thông tin bài viết đã đăng."""
+    sql = """
+        SELECT d.*,
+               (SELECT COUNT(*) FROM posts p WHERE p.deal_id=d.id AND p.status='done') AS posts_done_count,
+               (SELECT p.post_url FROM posts p WHERE p.deal_id=d.id AND p.status='done' AND p.post_url IS NOT NULL ORDER BY p.posted_at DESC LIMIT 1) AS latest_post_url,
+               (SELECT g.name FROM posts p JOIN groups g ON p.group_url=g.url WHERE p.deal_id=d.id AND p.status='done' ORDER BY p.posted_at DESC LIMIT 1) AS latest_group_name
+        FROM deals d WHERE 1=1
+    """
     args = []
     if niche:
-        sql += " AND niche=?"
+        sql += " AND LOWER(d.niche)=LOWER(?)"
         args.append(niche)
     if status:
-        sql += " AND status=?"
+        sql += " AND d.status=?"
         args.append(status)
+    if is_vip is True:
+        sql += " AND d.is_vip=1"
+    if is_mall is True:
+        sql += " AND d.is_mall=1"
     if search:
-        sql += " AND title LIKE ?"
+        sql += " AND d.title LIKE ?"
         args.append(f"%{search}%")
 
-    sql += " ORDER BY score DESC, created_at DESC LIMIT ? OFFSET ?"
+    sql += " ORDER BY d.score DESC, d.created_at DESC LIMIT ? OFFSET ?"
     args.extend([limit, offset])
 
     rows = db.q(sql, tuple(args))
     return [dict(r) for r in rows]
 
+@app.get("/api/deals/vip")
+def list_vip_deals(limit: int = 40):
+    """Danh sách deal Shopee VIP / Shopee Mall chính hãng điểm cao nhất."""
+    sql = """
+        SELECT d.*,
+               (SELECT COUNT(*) FROM posts p WHERE p.deal_id=d.id AND p.status='done') AS posts_done_count,
+               (SELECT p.post_url FROM posts p WHERE p.deal_id=d.id AND p.status='done' AND p.post_url IS NOT NULL ORDER BY p.posted_at DESC LIMIT 1) AS latest_post_url,
+               (SELECT g.name FROM posts p JOIN groups g ON p.group_url=g.url WHERE p.deal_id=d.id AND p.status='done' ORDER BY p.posted_at DESC LIMIT 1) AS latest_group_name
+        FROM deals d WHERE (d.is_vip=1 OR d.is_mall=1) AND d.is_valid=1
+        ORDER BY d.score DESC, d.sold DESC, d.created_at DESC LIMIT ?
+    """
+    rows = db.q(sql, (limit,))
+    return [dict(r) for r in rows]
+
+class CrawlDealsRequest(BaseModel):
+    niche: Optional[str] = None
+
+class CleanupDealsRequest(BaseModel):
+    delete_from_db: bool = True
+
 @app.post("/api/deals/crawl")
-def trigger_crawl_deals(background_tasks: BackgroundTasks, source: Optional[str] = "all"):
-    """Kích hoạt cào deal mới từ Shopee và Accesstrade."""
-    def run_crawl():
-        cfg = get_config()
-        deals.refresh(cfg)
-    background_tasks.add_task(run_crawl)
-    return {"message": "Đang cào deal từ Shopee (Flash Sale & Ngành hàng) trong tiến trình nền..."}
+def trigger_crawl_deals(payload: Optional[CrawlDealsRequest] = None, niche: Optional[str] = Query(None)):
+    """Kích hoạt cào deal mới từ Shopee (Flash Sale & Ngành hàng) và Accesstrade."""
+    target_niche = (payload.niche if payload and payload.niche else None) or niche
+    if target_niche and target_niche.lower() in ("all", "tất cả", ""):
+        target_niche = None
+
+    cfg = get_config()
+    res = deals.refresh(cfg, target_niche=target_niche)
+    added, updated = res if isinstance(res, tuple) else (res, 0)
+
+    niche_label = f"ngành '{target_niche}'" if target_niche else "tất cả ngành"
+    return {
+        "success": True,
+        "message": f"Cào deal thành công cho {niche_label}: +{added} deal mới, cập nhật {updated} deal!",
+        "added": added,
+        "updated": updated,
+        "niche": target_niche
+    }
+
+@app.post("/api/deals/cleanup")
+def trigger_cleanup_deals(payload: Optional[CleanupDealsRequest] = None):
+    """
+    Quét lại toàn bộ các deal đang lưu trong cơ sở dữ liệu:
+    - Kiểm tra đối chiếu với danh sách Flash Sale hiện thời của Shopee.
+    - Kiểm tra link sản phẩm xem có còn sale, bị xóa (404/410/redirect) hay hết hàng không.
+    - Tự động xóa khỏi DB và giải phóng dung lượng nếu không còn sale / hết hàng.
+    """
+    delete_from_db = payload.delete_from_db if payload else True
+    cfg = get_config()
+    res = deals.cleanup_expired_deals(cfg, delete_from_db=delete_from_db)
+    return res
+
+@app.post("/api/pipeline/run-all")
+def trigger_run_full_pipeline(background_tasks: BackgroundTasks):
+    """Khởi chạy toàn bộ luồng tự động 1-chạm: Cào deal -> Lập lịch phân bổ bài -> Đăng bài ngay."""
+    cfg = get_config()
+    # 1. Cào deal ngay
+    res = deals.refresh(cfg)
+    added, updated = res if isinstance(res, tuple) else (res, 0)
+
+    # 2. Lập lịch phân bổ deal và bản tin vào các group
+    plan_deals = planner.plan_day(cfg)
+    plan_digests = planner.plan_digests(cfg)
+
+    # 3. Kích hoạt tiến trình đăng các bài đến giờ qua Playwright
+    def run_post_task():
+        poster.run_due(cfg)
+    background_tasks.add_task(run_post_task)
+
+    return {
+        "success": True,
+        "message": f"🚀 Đã kích hoạt toàn bộ luồng thành công! +{added} deal mới (cập nhật {updated}), đã lên lịch {plan_deals} bài deal + {plan_digests} bản tin, và đang khởi động phiên đăng bài vào các group!",
+        "deals_added": added,
+        "deals_updated": updated,
+        "posts_planned": plan_deals + plan_digests
+    }
 
 @app.get("/api/groups")
 def list_groups(
@@ -311,16 +427,49 @@ def run_single_post_endpoint(post_id: int):
         raise HTTPException(status_code=500, detail=res.get("message", "Lỗi khi đăng bài."))
     return res
 
+@app.post("/api/posts/test")
+def test_post_endpoint(payload: TestPostRequest):
+    """Kiểm tra và test đăng bài Facebook trực tiếp, trả về kết quả & link bài đăng."""
+    cfg = get_config()
+    res = poster.test_post(
+        cfg=cfg,
+        account_name=payload.account,
+        group_url=payload.group_url,
+        caption=payload.caption,
+        comment=payload.comment or "",
+        dry_run=payload.dry_run,
+        image_path=payload.image_path
+    )
+    return res
+
 @app.get("/api/coupons")
-def list_coupons():
-    """Danh sách mã giảm giá & voucher active."""
-    rows = db.q("SELECT * FROM coupons ORDER BY end_at ASC LIMIT 60")
+def list_coupons(category: Optional[str] = None):
+    """Danh sách mã giảm giá & voucher active, hỗ trợ lọc theo nhóm ngành/loại mã."""
+    sql = "SELECT * FROM coupons WHERE 1=1"
+    args = []
+    if category and category.lower() not in ("all", "tất cả", ""):
+        sql += " AND category=?"
+        args.append(category.lower())
+    sql += " ORDER BY category ASC, end_at ASC LIMIT 80"
+    rows = db.q(sql, tuple(args))
     return [dict(r) for r in rows]
+
+@app.get("/api/coupons/campaigns")
+def list_campaigns():
+    """Danh sách các chương trình Sale & Khung giờ vàng hôm nay của Shopee (tự động gắn link Affiliate)."""
+    return shopee.get_daily_sale_campaigns()
 
 @app.post("/api/coupons/refresh")
 def trigger_refresh_coupons():
+    """Quét và tổng hợp mới toàn bộ Voucher Shopee VIP, Khung giờ Sale và link lưu mã hôm nay."""
     added = coupons.refresh()
-    return {"message": f"Đã cập nhật thêm {added} mã giảm giá mới!"}
+    active_count = len(coupons.active(limit=100))
+    return {
+        "success": True,
+        "message": f"Đã quét & tổng hợp thành công {active_count} mã giảm giá Shopee VIP hôm nay (thêm mới {added} mã) kèm link lưu mã Affiliate!",
+        "added": added,
+        "active_count": active_count
+    }
 
 @app.get("/api/events")
 def get_events():
@@ -791,20 +940,224 @@ def remove_group_from_db(url: str = Query(...)):
 
 @app.post("/api/groups/import-scanned")
 def import_scanned_groups_endpoint(payload: ImportGroupsRequest):
-    """Nhập các group đã quét vào cơ sở dữ liệu."""
+    """Nhập các group đã quét vào cơ sở dữ liệu kèm đầy đủ chỉ số tương tác."""
     added = 0
     updated = 0
     for g in payload.groups:
         existing = db.q("SELECT 1 FROM groups WHERE url=?", (g.url,), one=True)
         if existing:
-            db.x("UPDATE groups SET name=COALESCE(NULLIF(name, ''), ?), account=COALESCE(NULLIF(?, ''), account), status=? WHERE url=?",
-                 (g.name or "Group Facebook", g.account or "", g.status or "joined", g.url))
+            db.x("""UPDATE groups SET 
+                    name=COALESCE(NULLIF(name, ''), ?), 
+                    account=COALESCE(NULLIF(?, ''), account), 
+                    status=?,
+                    niche=COALESCE(NULLIF(?, ''), niche),
+                    kind=COALESCE(NULLIF(?, ''), kind),
+                    members=CASE WHEN ? > 0 THEN ? ELSE members END,
+                    posts_per_day=CASE WHEN ? > 0 THEN ? ELSE posts_per_day END,
+                    activity_text=COALESCE(NULLIF(?, ''), activity_text),
+                    privacy=COALESCE(NULLIF(?, ''), privacy),
+                    priority_score=CASE WHEN ? > 0 THEN ? ELSE priority_score END
+                    WHERE url=?""",
+                 (g.name or "Group Facebook", g.account or "", g.status or "joined",
+                  g.niche or "săn sale", g.kind or "dealhunt",
+                  g.members or 0, g.members or 0,
+                  g.posts_per_day or 0.0, g.posts_per_day or 0.0,
+                  g.activity_text or "", g.privacy or "public",
+                  g.priority_score or 0.0, g.priority_score or 100.0,
+                  g.url))
             updated += 1
         else:
-            db.x("INSERT INTO groups(url, name, niche, kind, status, account, allow_link, priority_score) VALUES(?,?,?,?,?,?,?,?)",
-                 (g.url, g.name or "Group Facebook", g.niche or "săn sale", g.kind or "dealhunt", g.status or "joined", g.account or "", 1, 100.0))
+            db.x("""INSERT INTO groups(url, name, niche, kind, status, account, allow_link, priority_score, members, posts_per_day, activity_text, privacy) 
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 (g.url, g.name or "Group Facebook", g.niche or "săn sale", g.kind or "dealhunt",
+                  g.status or "joined", g.account or "", 1, g.priority_score or 100.0,
+                  g.members or 0, g.posts_per_day or 0.0, g.activity_text or "", g.privacy or "public"))
             added += 1
     return {"message": f"Đã nhập thành công! Thêm mới {added} nhóm, cập nhật {updated} nhóm.", "added": added, "updated": updated}
+
+
+@app.post("/api/groups/search-niche")
+def search_niche_groups_endpoint(payload: SearchNicheGroupsRequest):
+    """Tìm kiếm nhóm Facebook theo từ khóa/nhóm ngành, đánh giá tương tác/thành viên/bài viết, và auto-join."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == payload.account), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{payload.account}.json"
+
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{payload.account}'. Hãy cập nhật cookie trước.")
+
+    scanner_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_groups_scanner.py")
+    cmd = [
+        sys.executable, scanner_script, "search", full_path,
+        "--keyword", payload.keyword,
+        "--niche", payload.niche or "",
+        "--min-members", str(payload.min_members or 5000),
+        "--min-posts", str(payload.min_posts_per_day or 3.0),
+        "--max-results", str(payload.max_results or 15),
+        "--max-scroll", str(payload.max_scroll or 6)
+    ]
+    if payload.only_public:
+        cmd.append("--only-public")
+    if payload.auto_join:
+        cmd.append("--auto-join")
+
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
+        if proc.returncode != 0:
+            err = proc.stderr.strip() or "Tiến trình tìm kiếm gặp lỗi không xác định."
+            raise RuntimeError(err)
+
+        output_str = proc.stdout.strip()
+        if not output_str:
+            raise RuntimeError("Không nhận được dữ liệu trả về từ trình duyệt.")
+
+        data = json.loads(output_str)
+        data["account"] = payload.account
+        return data
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Lỗi phản hồi từ trình duyệt: {proc.stdout}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi tìm kiếm nhóm: {str(e)}")
+
+
+@app.post("/api/accounts/{account_name}/join-group")
+def join_group_endpoint(account_name: str, payload: JoinGroupRequest):
+    """Tự động tham gia một group Facebook bằng tài khoản được chỉ định qua Playwright."""
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{account_name}'.")
+
+    scanner_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_groups_scanner.py")
+    try:
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        proc = subprocess.run(
+            [sys.executable, scanner_script, "join", full_path, "--group-url", payload.group_url],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=90
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.strip() or "Tiến trình tham gia nhóm gặp lỗi."
+            raise RuntimeError(err)
+
+        output_str = proc.stdout.strip()
+        if not output_str:
+            raise RuntimeError("Không nhận được dữ liệu trả về từ trình duyệt.")
+
+        data = json.loads(output_str)
+        data["account"] = account_name
+
+        if data.get("success"):
+            new_status = data.get("status", "joined")
+            existing = db.q("SELECT 1 FROM groups WHERE url=?", (payload.group_url,), one=True)
+            if existing:
+                db.x("UPDATE groups SET status=?, account=? WHERE url=?", (new_status, account_name, payload.group_url))
+            else:
+                db.x("INSERT INTO groups(url, name, status, account) VALUES(?,?,?,?)",
+                     (payload.group_url, "Group Facebook", new_status, account_name))
+
+        return data
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Lỗi phản hồi từ trình duyệt: {proc.stdout}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi tham gia nhóm: {str(e)}")
+
+
+@app.post("/api/groups/auto-join-batch")
+def auto_join_batch_endpoint(payload: BatchJoinGroupsRequest):
+    """Tự động tham gia hàng loạt các nhóm candidate bằng Playwright."""
+    account_name = payload.account
+    cfg = get_config()
+    acc = next((a for a in cfg.get("accounts", []) if a["name"] == account_name), None)
+    cookie_rel_path = acc.get("cookie_file") if acc else f"cookies/{account_name}.json"
+
+    full_path = cookie_rel_path
+    if not os.path.isabs(full_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, full_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=400, detail=f"Chưa có file cookie cho tài khoản '{account_name}'.")
+
+    urls = payload.group_urls or []
+    if not urls:
+        limit = payload.limit or 5
+        rows = db.q("SELECT url FROM groups WHERE status='candidate' ORDER BY priority_score DESC LIMIT ?", (limit,))
+        urls = [r["url"] for r in rows]
+
+    if not urls:
+        return {"success": True, "message": "Không có nhóm chờ (candidate) nào cần tham gia.", "results": []}
+
+    scanner_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modules", "fb_groups_scanner.py")
+    results = []
+    success_count = 0
+    pending_count = 0
+    fail_count = 0
+
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
+    for idx, g_url in enumerate(urls):
+        try:
+            proc = subprocess.run(
+                [sys.executable, scanner_script, "join", full_path, "--group-url", g_url],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                timeout=90
+            )
+            data = json.loads(proc.stdout.strip()) if proc.stdout.strip() else {"success": False, "message": proc.stderr.strip()}
+        except Exception as e:
+            data = {"success": False, "message": str(e)}
+
+        data["url"] = g_url
+        if data.get("success"):
+            st = data.get("status", "joined")
+            if st == "pending_approval":
+                pending_count += 1
+            else:
+                success_count += 1
+            db.x("UPDATE groups SET status=?, account=? WHERE url=?", (st, account_name, g_url))
+        else:
+            fail_count += 1
+
+        results.append(data)
+        if idx < len(urls) - 1:
+            time.sleep(random.randint(4, 7))
+
+    return {
+        "success": True,
+        "total": len(urls),
+        "joined": success_count,
+        "pending": pending_count,
+        "failed": fail_count,
+        "results": results,
+        "message": f"Hoàn tất duyệt {len(urls)} nhóm: {success_count} đã vào, {pending_count} chờ duyệt, {fail_count} không thành công."
+    }
+
 
 
 

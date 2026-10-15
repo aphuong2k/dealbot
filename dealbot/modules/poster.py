@@ -6,23 +6,54 @@ Hỗ trợ:
 - Tự học & chấm điểm chất lượng nhóm (hạ điểm khi lỗi, tạm dừng khi dính 3 lỗi liên tiếp)
 - Chế độ nuôi nick tự động nhẹ (lướt feed, thả tim)
 """
-import json, time, random, re, db
+import os, json, time, random, re, db
 from . import deals as dealmod
 from .affiliate import extract_group_tag
 from notify import tg
 from playwright.sync_api import sync_playwright
 
+def _load_cookies(path):
+    if not path:
+        return []
+    if not os.path.isabs(path):
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cand1 = os.path.join(base_dir, path)
+        if os.path.exists(cand1):
+            path = cand1
+        else:
+            cand2 = os.path.join(base_dir, "dealbot", path)
+            if os.path.exists(cand2):
+                path = cand2
+    if not os.path.exists(path):
+        return []
+    try:
+        raw = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return []
+    out = []
+    for c in raw:
+        ck = {"name": c["name"], "value": c["value"], "domain": c.get("domain", ".facebook.com"),
+              "path": c.get("path", "/"), "secure": True}
+        ss = {"no_restriction": "None", "lax": "Lax", "strict": "Strict"}.get(str(c.get("sameSite", "")).lower())
+        if ss: ck["sameSite"] = ss
+        out.append(ck)
+    return out
+
 class AccountSession:
     def __init__(self, pw, acc):
         self.acc = acc
-        self.browser = pw.chromium.launch(headless=False)           # headless=False ít bị nghi ngờ hơn
+        self.browser = pw.chromium.launch(headless=True)
         self.ctx = self.browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 800})
-        self.ctx.add_cookies(_load_cookies(acc["cookie_file"]))
+        cks = _load_cookies(acc.get("cookie_file"))
+        if not cks:
+            raise FileNotFoundError(f"Chưa có file cookie hợp lệ cho nick '{acc['name']}' ({acc.get('cookie_file')}).")
+        self.ctx.add_cookies(cks)
         self.page = self.ctx.new_page()
 
     def healthy(self):
         self.page.goto("https://www.facebook.com/", wait_until="domcontentloaded")
         time.sleep(random.uniform(2, 4))
+
         u = self.page.url
         return not any(k in u for k in ("checkpoint", "login", "two_step"))
 
@@ -37,16 +68,27 @@ class AccountSession:
             raise RuntimeError("CHECKPOINT")
         
         _scroll(pg)
-        box = pg.get_by_role("button", name=re.compile(r"(Bạn viết gì đi|Write something|Viết bài|Create (a )?public post)", re.I)).first
-        box.click(); _pause(1.5, 3)
-        dlg = pg.get_by_role("dialog").first
-        txt = dlg.get_by_role("textbox").first
-        txt.click()
+        try:
+            box = pg.get_by_role("button", name=re.compile(r"(Bạn viết gì đi|Write something|Viết bài|Create (a )?public post)", re.I)).first
+            box.wait_for(state="visible", timeout=8000)
+            box.click()
+            _pause(1.5, 3)
+        except Exception:
+            raise RuntimeError("Không tìm thấy ô đăng bài trên nhóm này (có thể do nhóm riêng tư chưa được duyệt hoặc bạn chưa tham gia nhóm).")
+
+        try:
+            dlg = pg.get_by_role("dialog").first
+            dlg.wait_for(state="visible", timeout=8000)
+            txt = dlg.get_by_role("textbox").first
+            txt.click(timeout=5000)
+        except Exception:
+            raise RuntimeError("Không mở được hộp thoại soạn thảo bài viết trên Facebook.")
         
         if image_path:
             self._attach(dlg, image_path)
             
-        pg.keyboard.type(caption, delay=random.randint(40, 110)); _pause(1.5, 3)
+        pg.keyboard.type(caption, delay=random.randint(30, 80)); _pause(1.5, 3)
+
         
         if dry_run:
             print(f"[DRY] {group_url}\n{caption}\nComment: {comment}\n---")
@@ -68,7 +110,7 @@ class AccountSession:
 
         if is_pending:
             print(f"[PENDING] Bài viết tại {group_url} đang chờ admin duyệt. Hẹn giờ retry comment sau.")
-            return {"status": "pending_approval", "comment_status": "pending_approval"}
+            return {"status": "pending_approval", "comment_status": "pending_approval", "post_url": None}
 
         # Nếu đăng thành công trực tiếp và có comment
         comment_status = "none"
@@ -76,7 +118,33 @@ class AccountSession:
             cmt_ok = self._comment_latest(comment)
             comment_status = "done" if cmt_ok else "pending_approval"
 
-        return {"status": "done", "comment_status": comment_status}
+        # Bóc tách permalink bài viết vừa đăng trên Facebook
+        post_url = self._extract_latest_post_url(group_url)
+
+        return {"status": "done", "comment_status": comment_status, "post_url": post_url}
+
+    def _extract_latest_post_url(self, group_url):
+        """Trích xuất permalink của bài viết vừa đăng lên group Facebook."""
+        pg = self.page
+        try:
+            time.sleep(2)
+            links = pg.locator('a[href*="/posts/"], a[href*="/permalink/"]').all()
+            for l in links[:6]:
+                try:
+                    href = l.get_attribute("href") or ""
+                    m = re.search(r"facebook\.com/groups/([^/?#]+)/(posts|permalink)/(\d+)", href)
+                    if m:
+                        return f"https://www.facebook.com/groups/{m.group(1)}/posts/{m.group(3)}/"
+                    if "/posts/" in href or "/permalink/" in href:
+                        clean_url = href.split("?")[0]
+                        if not clean_url.startswith("http"):
+                            clean_url = f"https://www.facebook.com{clean_url}"
+                        return clean_url
+                except Exception:
+                    continue
+        except Exception as e:
+            print("[poster] Không lấy được link bài:", e)
+        return None
 
     def _attach(self, dlg, image_path):
         """Đính ảnh vào bài viết."""
@@ -163,17 +231,6 @@ class AccountSession:
         try: self.browser.close()
         except Exception: pass
 
-def _load_cookies(path):
-    raw = json.load(open(path, encoding="utf-8"))
-    out = []
-    for c in raw:
-        ck = {"name": c["name"], "value": c["value"], "domain": c.get("domain", ".facebook.com"),
-              "path": c.get("path", "/"), "secure": True}
-        ss = {"no_restriction": "None", "lax": "Lax", "strict": "Strict"}.get(str(c.get("sameSite", "")).lower())
-        if ss: ck["sameSite"] = ss
-        out.append(ck)
-    return out
-
 def _pause(a, b): time.sleep(random.uniform(a, b))
 def _scroll(pg):
     for _ in range(random.randint(1, 3)):
@@ -234,11 +291,20 @@ def run_due(cfg):
 
                 if not cfg["dry_run"]:
                     c_status = res.get("comment_status", "none")
+                    post_url = res.get("post_url")
                     # Nếu bài chờ admin duyệt, đặt lịch hẹn kiểm tra comment sau 45 phút
                     c_retry_at = (now + 45 * 60) if c_status == "pending_approval" else 0
                     
-                    db.x("""UPDATE posts SET status='done', posted_at=?, comment_status=?, comment_retry_at=? 
-                            WHERE id=?""", (now, c_status, c_retry_at, post["id"]))
+                    db.x("""UPDATE posts SET status='done', posted_at=?, post_url=?, comment_status=?, comment_retry_at=? 
+                            WHERE id=?""", (now, post_url, c_status, c_retry_at, post["id"]))
+
+                    # Cập nhật vòng đời sản phẩm: đánh dấu đã đăng, tăng số lần đăng & mốc thời gian
+                    if post.get("kind") == "deal" and post.get("deal_id"):
+                        db.x("""UPDATE deals SET 
+                                status='posted', 
+                                posted_count=COALESCE(posted_count, 0) + 1, 
+                                last_posted_at=? 
+                                WHERE id=?""", (now, post["deal_id"]))
 
                     # TỰ HỌC: Cộng điểm uy tín cho group và reset chuỗi lỗi
                     db.x("""UPDATE groups SET 
@@ -345,19 +411,28 @@ def post_single(cfg, post):
 
             status = res.get("status", "done")
             c_status = res.get("comment_status", "none")
+            post_url = res.get("post_url")
             c_retry_at = (now + 45 * 60) if c_status == "pending_approval" else 0
 
-            db.x("""UPDATE posts SET status=?, posted_at=?, comment_status=?, comment_retry_at=?
-                    WHERE id=?""", (status, now, c_status, c_retry_at, post["id"]))
+            db.x("""UPDATE posts SET status=?, posted_at=?, post_url=?, comment_status=?, comment_retry_at=?
+                    WHERE id=?""", (status, now, post_url, c_status, c_retry_at, post["id"]))
 
             if status == "done":
                 db.x("""UPDATE groups SET last_posted_at=?, success_count=success_count+1, consecutive_fails=0,
                         priority_score=MIN(200.0, priority_score + 5.0) WHERE url=?""", (now, post["group_url"]))
 
+                if post.get("kind") == "deal" and post.get("deal_id"):
+                    db.x("""UPDATE deals SET 
+                            status='posted', 
+                            posted_count=COALESCE(posted_count, 0) + 1, 
+                            last_posted_at=? 
+                            WHERE id=?""", (now, post["deal_id"]))
+
             return {
                 "success": True,
                 "status": status,
                 "comment_status": c_status,
+                "post_url": post_url,
                 "message": f"Đã đăng bài #{post['id']} thành công ({status})!"
             }
         except Exception as e:
@@ -367,3 +442,46 @@ def post_single(cfg, post):
         finally:
             if sess:
                 sess.close()
+
+
+def test_post(cfg, account_name: str, group_url: str, caption: str, comment: str = "", dry_run: bool = False, image_path: str = None) -> dict:
+    """Thử nghiệm đăng bài trực tiếp bằng Playwright và trả về kết quả kèm link bài đăng."""
+    accs = {a["name"]: a for a in cfg.get("accounts", [])}
+    if account_name not in accs:
+        return {"success": False, "message": f"Tài khoản '{account_name}' không tồn tại trong cấu hình."}
+
+    acc = accs[account_name]
+    with sync_playwright() as pw:
+        sess = None
+        try:
+            sess = AccountSession(pw, acc)
+            if not sess.healthy():
+                return {"success": False, "message": f"Tài khoản '{account_name}' dính checkpoint hoặc hết hạn cookie Facebook."}
+
+            res = sess.post(
+                group_url=group_url,
+                caption=caption,
+                comment=comment,
+                dry_run=dry_run,
+                image_path=image_path
+            )
+
+            status = res.get("status", "done")
+            c_status = res.get("comment_status", "none")
+            post_url = res.get("post_url")
+
+            msg = "Đăng thử nghiệm thành công!" if not dry_run else "Chạy thử (Dry Run) hoàn tất (không tạo bài thật)!"
+            return {
+                "success": True,
+                "status": status,
+                "comment_status": c_status,
+                "post_url": post_url,
+                "dry_run": dry_run,
+                "message": msg
+            }
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi trong quá trình đăng thử nghiệm: {str(e)}"}
+        finally:
+            if sess:
+                sess.close()
+

@@ -127,6 +127,21 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  triggerRunAll(): void {
+    this.actionLoading['all'] = true;
+    this.api.runFullPipeline().subscribe({
+      next: (res) => {
+        this.actionLoading['all'] = false;
+        this.msg.success(res.message);
+        this.loadStats();
+      },
+      error: (err) => {
+        this.actionLoading['all'] = false;
+        this.msg.error(err?.error?.detail || 'Lỗi khi khởi chạy toàn bộ luồng!');
+      }
+    });
+  }
+
   triggerTelegramDigest(): void {
     this.actionLoading['tg'] = true;
     this.api.postDigestTelegram().subscribe({

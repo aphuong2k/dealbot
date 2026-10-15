@@ -6,6 +6,9 @@
       <p class="section-subtitle">Tự động phân bổ giờ ngẫu nhiên trong khung hoạt động, theo dõi chuyển đổi đơn hàng qua Sub-ID.</p>
     </div>
     <div class="header-actions">
+      <button nz-button class="btn-test-post" (click)="openTestModal()">
+        🧪 Test Đăng Bài Thủ Công
+      </button>
       <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="planLoading">
         🗓 Lên Lịch Hôm Nay (07:30)
       </button>
@@ -44,14 +47,15 @@
     >
       <thead>
         <tr>
-          <th nzWidth="80px">ID</th>
-          <th nzWidth="150px">Giờ Dự Kiến</th>
-          <th nzWidth="110px">Tài Khoản</th>
+          <th nzWidth="70px">ID</th>
+          <th nzWidth="140px">Giờ Dự Kiến</th>
+          <th nzWidth="100px">Tài Khoản</th>
           <th>Nhóm Đăng / Loại</th>
           <th>Sub-ID Theo Dõi</th>
           <th nzWidth="130px">Trạng Thái Bài</th>
-          <th nzWidth="150px">Bình Luận Link</th>
-          <th nzWidth="90px">Xem</th>
+          <th nzWidth="140px">Bình Luận Link</th>
+          <th nzWidth="130px">Link Bài FB</th>
+          <th nzWidth="120px">Thao Tác</th>
         </tr>
       </thead>
       <tbody>
@@ -110,6 +114,14 @@
             </div>
           </td>
 
+          <!-- Link bài FB -->
+          <td>
+            <a *ngIf="p.post_url" [href]="p.post_url" target="_blank" class="post-fb-link" title="Xem bài viết trực tiếp trên Facebook">
+              🔗 Xem bài FB ↗
+            </a>
+            <span *ngIf="!p.post_url" class="text-muted" style="font-size: 12px;">-</span>
+          </td>
+
           <!-- Action -->
           <td>
             <div style="display: flex; gap: 6px; align-items: center;">
@@ -125,7 +137,7 @@
                 [nzLoading]="runningPostId === p.id"
                 title="Đăng bài này ngay lập tức"
               >
-                ⚡ Đăng ngay
+                ⚡ Đăng
               </button>
             </div>
           </td>
@@ -140,10 +152,26 @@
     nzTitle="Chi Tiết Bài Viết Lên Lịch"
     (nzOnCancel)="closePreview()"
     [nzFooter]="null"
-    nzWidth="640px"
+    nzWidth="680px"
   >
     <ng-container *nzModalContent>
       <div *ngIf="selectedPostForPreview" class="preview-modal-body">
+        <!-- Banner link bài đăng Facebook nếu có -->
+        <div *ngIf="selectedPostForPreview.post_url" class="preview-fb-banner">
+          <div class="fb-banner-left">
+            <span class="fb-badge">FACEBOOK PERMALINK</span>
+            <div class="fb-url-truncate">{{ selectedPostForPreview.post_url }}</div>
+          </div>
+          <div class="fb-banner-actions">
+            <a [href]="selectedPostForPreview.post_url" target="_blank" class="btn-visit-fb">
+              🔗 Mở bài viết trên Facebook ↗
+            </a>
+            <button nz-button nzSize="small" (click)="copyLink(selectedPostForPreview.post_url)">
+              📋 Copy
+            </button>
+          </div>
+        </div>
+
         <div class="preview-meta">
           <div><b>Tài khoản:</b> <span class="acc-pill-sm">{{ selectedPostForPreview.account }}</span></div>
           <div><b>Thời gian hẹn:</b> {{ selectedPostForPreview.scheduled_at * 1000 | date:'HH:mm dd/MM/yyyy' }}</div>
@@ -186,4 +214,179 @@
       </div>
     </ng-container>
   </nz-modal>
+
+  <!-- Modal Test Đăng Bài Thủ Công -->
+  <nz-modal
+    [(nzVisible)]="testModalVisible"
+    nzTitle="🧪 Thử Nghiệm Đăng Bài Facebook & Kiểm Tra Link Trả Về"
+    (nzOnCancel)="closeTestModal()"
+    [nzFooter]="null"
+    nzWidth="720px"
+  >
+    <ng-container *nzModalContent>
+      <div class="test-post-modal-body">
+        <p class="modal-desc">
+          Công cụ cho phép bạn kiểm tra quy trình tự động mở Facebook bằng Playwright, đăng bài lên nhóm, tự động comment link tiếp thị và trích xuất URL bài viết sau khi đăng.
+        </p>
+
+        <!-- Form cấu hình -->
+        <div class="form-grid">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Tài Khoản Facebook (Cookie):</label>
+              <nz-select [(ngModel)]="testForm.account" style="width: 100%;">
+                <nz-option *ngFor="let a of accountOptions" [nzValue]="a.value" [nzLabel]="a.label ? a.label : 'Mặc định'"></nz-option>
+              </nz-select>
+            </div>
+
+            <div class="form-group flex-1">
+              <label class="form-label">Chế Độ Đăng Bài:</label>
+              <div class="dry-run-switch-box">
+                <nz-switch
+                  [(ngModel)]="testForm.dry_run"
+                  nzCheckedChildren="Chạy Thử (Dry Run)"
+                  nzUnCheckedChildren="Đăng Thật (Live FB)"
+                ></nz-switch>
+                <span class="mode-hint" [ngClass]="testForm.dry_run ? 'hint-dry' : 'hint-live'">
+                  {{ testForm.dry_run ? '🛡️ Xem giao diện, không tạo bài thật' : '⚡ Sẽ đăng thật lên nhóm Facebook!' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group URL -->
+          <div class="form-group">
+            <label class="form-label">
+              <span>Link Group Facebook Cần Đăng:</span>
+              <span *ngIf="activeGroups.length > 0" class="quick-pick-label">Chọn nhanh:</span>
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input
+                nz-input
+                placeholder="https://www.facebook.com/groups/..."
+                [(ngModel)]="testForm.group_url"
+                class="form-input-code"
+              />
+              <nz-select
+                *ngIf="activeGroups.length > 0"
+                style="width: 220px;"
+                nzPlaceHolder="Chọn từ nhóm có sẵn"
+                [ngModel]="testForm.group_url"
+                (ngModelChange)="onGroupSelect($event)"
+              >
+                <nz-option
+                  *ngFor="let g of activeGroups"
+                  [nzValue]="g.url"
+                  [nzLabel]="(g.name || g.url) | slice:0:30"
+                ></nz-option>
+              </nz-select>
+            </div>
+          </div>
+
+          <!-- Caption -->
+          <div class="form-group">
+            <label class="form-label">Nội Dung Bài Đăng (Caption):</label>
+            <textarea
+              nz-input
+              rows="4"
+              placeholder="Nhập nội dung bài viết..."
+              [(ngModel)]="testForm.caption"
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <!-- Comment -->
+          <div class="form-group">
+            <label class="form-label">Nội Dung Bình Luận (Gắn Link Shopee / Telegram):</label>
+            <textarea
+              nz-input
+              rows="3"
+              placeholder="Nhập link tiếp thị hoặc bình luận đính kèm..."
+              [(ngModel)]="testForm.comment"
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <!-- Image Path (Optional) -->
+          <div class="form-group">
+            <label class="form-label">Đường Dẫn Ảnh Đính Kèm (Tùy chọn):</label>
+            <input
+              nz-input
+              placeholder="Để trống nếu không đính kèm ảnh (hoặc ví dụ: banner.jpg)"
+              [(ngModel)]="testForm.image_path"
+            />
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="modal-footer-actions">
+          <button nz-button class="btn-cancel" (click)="closeTestModal()" [disabled]="testLoading">
+            Đóng
+          </button>
+          <button
+            nz-button
+            class="btn-submit-test"
+            (click)="runTestPost()"
+            [nzLoading]="testLoading"
+          >
+            🚀 Bắt Đầu Test Đăng Bài
+          </button>
+        </div>
+
+        <!-- Kết Quả Trả Về -->
+        <div *ngIf="testLoading" class="test-loading-box">
+          <nz-spin nzSimple></nz-spin>
+          <p class="mt-2">Đang khởi chạy trình duyệt Playwright và thực hiện đăng bài lên Facebook...</p>
+        </div>
+
+        <div *ngIf="testResult" class="test-result-card" [ngClass]="testResult.success ? 'result-success' : 'result-error'">
+          <div class="result-header">
+            <span class="result-status-title">
+              {{ testResult.success ? '🎉 Kết Quả Thử Nghiệm Hoàn Tất' : '⚠️ Có Lỗi Xảy Ra Khi Thử Nghiệm' }}
+            </span>
+            <span class="badge-mode">{{ testResult.dry_run ? 'CHẾ ĐỘ DRY-RUN' : 'LIVE FB' }}</span>
+          </div>
+
+          <div class="result-body">
+            <div class="result-row">
+              <span class="label">Trạng thái bài đăng:</span>
+              <span class="val font-semibold">
+                {{ testResult.status === 'done' ? '✅ Thành công' : (testResult.status === 'pending_approval' ? '⏳ Chờ Admin duyệt' : testResult.status) }}
+              </span>
+            </div>
+
+            <div class="result-row" *ngIf="testResult.comment_status">
+              <span class="label">Bình luận Link:</span>
+              <span class="val">
+                {{ testResult.comment_status === 'done' ? '💬 Đã bình luận thành công' : (testResult.comment_status === 'pending_approval' ? '⏳ Hẹn retry duyệt' : testResult.comment_status) }}
+              </span>
+            </div>
+
+            <!-- LINK BÀI ĐĂNG FACEBOOK ĐƯỢC TRẢ VỀ -->
+            <div class="result-row permalink-row" *ngIf="testResult.post_url">
+              <span class="label font-bold text-success">🔗 Link bài đăng Facebook:</span>
+              <div class="permalink-content">
+                <a [href]="testResult.post_url" target="_blank" class="post-live-link">
+                  {{ testResult.post_url }} ↗
+                </a>
+                <button nz-button nzSize="small" (click)="copyLink(testResult.post_url)">
+                  📋 Sao chép link
+                </button>
+              </div>
+            </div>
+
+            <div class="result-row" *ngIf="!testResult.post_url && !testResult.dry_run">
+              <span class="label text-muted">Link bài đăng:</span>
+              <span class="val text-muted font-italic">Chưa bắt được permalink (bài có thể đang chờ admin duyệt hoặc cần reload).</span>
+            </div>
+
+            <div class="result-msg">
+              <b>Thông báo:</b> {{ testResult.message }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
+
 </div>

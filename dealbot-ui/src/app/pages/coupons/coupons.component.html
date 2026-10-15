@@ -2,29 +2,146 @@
   <!-- Header Card -->
   <div class="page-header glass-card">
     <div>
-      <h2 class="section-title">Kho Mã Giảm Giá & Sự Kiện Lớn (Vouchers & Mega Sales)</h2>
-      <p class="section-subtitle">Dữ liệu nguồn tự động từ Accesstrade kết hợp lịch sự kiện cố định (9.9, 10.10, 11.11, Flash sale) để AI tổng hợp bản tin.</p>
+      <h2 class="section-title">Kho Mã Giảm Giá, Khung Giờ Sale & Voucher Shopee VIP</h2>
+      <p class="section-subtitle">
+        Tự động tổng hợp các đợt sale hôm nay, mã freeship 0đ, voucher Shopee Live/Video 50%, và tự động gắn mã Affiliate Publisher của bạn.
+      </p>
     </div>
     <div class="header-actions">
+      <button nz-button class="btn-refresh-coupons" (click)="triggerRefresh()" [nzLoading]="refreshLoading">
+        ⚡ Quét & Tổng Hợp Mã Shopee VIP Hôm Nay
+      </button>
+
+      <button nz-button class="btn-plan-digest" (click)="planDigestToGroups()" [nzLoading]="planDigestLoading" nz-tooltip nzTooltipTitle="Tự động lập lịch phân bổ bản tin săn sale vào các hội nhóm Facebook săn deal hôm nay">
+        📝 Lập Lịch Bản Tin FB
+      </button>
+
+      <button nz-button class="btn-telegram" (click)="broadcastTelegram()" [nzLoading]="broadcastLoading" nz-tooltip nzTooltipTitle="Đăng ngay bản tin tổng hợp mã giảm giá hôm nay lên kênh Telegram">
+        📢 Đăng Kênh Telegram
+      </button>
+
       <button nz-button class="btn-outline" (click)="openAddEvent()">
-        ➕ Khai Báo Sự Kiện Mới
-      </button>
-      <button nz-button class="btn-primary" (click)="triggerRefresh()">
-        🔄 Cập Nhật Mã Mới
-      </button>
-      <button nz-button class="btn-telegram" (click)="broadcastTelegram()" [nzLoading]="broadcastLoading">
-        📢 Đăng Kênh Telegram Ngay
+        ➕ Khai Báo Sự Kiện
       </button>
     </div>
   </div>
 
-  <!-- Tabs: Events vs Coupons -->
+  <!-- Content Tabs -->
   <div class="content-tabs glass-card">
     <nz-tabset>
-      <!-- Tab 1: Mega Events (events.yaml) -->
+      <!-- Tab 1: Live Sale Campaigns & Flash Sale Slots -->
+      <nz-tab nzTitle="⚡ Khung Giờ & Chiến Dịch Sale Hôm Nay">
+        <div class="tab-desc">
+          Các khung giờ săn deal vàng và đại tiệc sale lớn của Shopee trong ngày. Tất cả đường dẫn đều đã được tự động gắn mã tracking Affiliate của bạn.
+        </div>
+
+        <div class="campaigns-grid" *ngIf="campaigns.length > 0">
+          <div *ngFor="let camp of campaigns" class="campaign-card" [class.is-live]="camp.is_live_now">
+            <div class="campaign-header">
+              <span class="campaign-tag" [class.live-tag]="camp.is_live_now">{{ camp.tag }}</span>
+              <span class="live-pill" *ngIf="camp.is_live_now">🔴 ĐANG DIỄN RA</span>
+            </div>
+
+            <h4 class="campaign-title">{{ camp.title }}</h4>
+            <p class="campaign-desc">{{ camp.description }}</p>
+
+            <div class="campaign-meta">
+              <span class="campaign-slot">⏰ {{ camp.slot }}</span>
+            </div>
+
+            <div class="campaign-actions">
+              <a [href]="camp.aff_url || camp.url" target="_blank" class="btn-camp-link">
+                Săn Deal Ngay ↗
+              </a>
+              <button class="btn-copy-link" (click)="copyLink(camp.aff_url || camp.url, 'Link Chiến Dịch')">
+                📋 Copy Link Aff
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="campaigns.length === 0" class="empty-state">
+          Đang tải danh sách chiến dịch sale hôm nay...
+        </div>
+      </nz-tab>
+
+      <!-- Tab 2: Live Daily Shopee Vouchers -->
+      <nz-tab nzTitle="🎟 Kho Mã Giảm Giá Shopee Trong Ngày">
+        <div class="tab-desc">
+          Mã giảm giá, hoàn xu toàn sàn, voucher Shopee Live/Video và mã miễn phí vận chuyển. Click <b>"Lưu Mã Shopee ↗"</b> để mở thẳng trang thu thập voucher.
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="voucher-filters-row">
+          <div class="filter-item">
+            <nz-select [(ngModel)]="selectedCategory" (ngModelChange)="filterCoupons()" style="width: 250px;">
+              <nz-option *ngFor="let opt of categoryOptions" [nzValue]="opt.value" [nzLabel]="opt.label"></nz-option>
+            </nz-select>
+          </div>
+          <div class="filter-item search-box">
+            <input nz-input placeholder="🔍 Tìm kiếm mã voucher, điều kiện..." [(ngModel)]="searchQuery" (keyup.enter)="filterCoupons()" />
+          </div>
+          <button nz-button class="btn-outline" (click)="filterCoupons()">Lọc Mã</button>
+        </div>
+
+        <!-- Vouchers Table -->
+        <nz-table #couponsTable [nzData]="coupons" [nzLoading]="loading" [nzPageSize]="10" nzShowPagination>
+          <thead>
+            <tr>
+              <th nzWidth="150px">Mã Code / Voucher</th>
+              <th>Tiêu Đề & Điều Kiện Áp Dụng</th>
+              <th nzWidth="140px">Phân Loại</th>
+              <th nzWidth="160px">Thời Hạn</th>
+              <th nzWidth="180px">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of couponsTable.data">
+              <td>
+                <div class="code-pill-wrap">
+                  <span class="code-pill" [class.code-event]="c.code === 'SỰ KIỆN' || c.code === 'FLASH_SALE'">
+                    {{ c.code || 'LƯU BANNER' }}
+                  </span>
+                  <button *ngIf="c.code && c.code !== 'SỰ KIỆN' && c.code !== 'FLASH_SALE'" class="copy-code-btn" (click)="copyLink(c.code, 'Mã Code')" title="Copy mã code">
+                    📋
+                  </button>
+                </div>
+              </td>
+              <td>
+                <div class="coupon-title-col">
+                  <div class="c-title">{{ c.title }}</div>
+                  <div class="c-detail">{{ c.detail }}</div>
+                </div>
+              </td>
+              <td>
+                <nz-tag [nzColor]="getCategoryBadge(c.category).color">
+                  {{ getCategoryBadge(c.category).text }}
+                </nz-tag>
+              </td>
+              <td>
+                <span class="expiry-text">
+                  Hết hạn: {{ c.end_at * 1000 | date:'HH:mm dd/MM' }}
+                </span>
+              </td>
+              <td>
+                <div class="coupon-action-cell">
+                  <a [href]="c.aff_url || c.save_url || c.url" target="_blank" class="aff-link" nz-tooltip nzTooltipTitle="Mở trang Shopee đã gắn mã affiliate của bạn để lưu mã">
+                    Lưu Mã ↗
+                  </a>
+                  <button class="copy-aff-btn" (click)="copyLink(c.aff_url || c.save_url || c.url, 'Link Lưu Mã')" title="Copy Link Affiliate">
+                    Copy Link
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </nz-table>
+      </nz-tab>
+
+      <!-- Tab 3: Mega Events (events.yaml) -->
       <nz-tab nzTitle="🎉 Sự Kiện Lớn (events.yaml)">
         <div class="tab-desc">
-          Các đợt siêu sale cố định gắn link affiliate của bạn. AI sẽ ưu tiên đưa các sự kiện này vào bản tin hàng ngày.
+          Các đợt siêu sale cố định được lưu trong events.yaml. Bạn có thể tự khai báo thêm các sự kiện riêng của bạn.
         </div>
         <div class="events-grid">
           <div *ngFor="let ev of events; let idx = index" class="event-card">
@@ -39,54 +156,15 @@
               <span>Kết thúc: {{ ev.end }}</span>
             </div>
             <div class="event-link-row">
-              <a [href]="ev.link" target="_blank" class="event-link">Mở link aff ↗</a>
+              <a [href]="ev.link" target="_blank" class="event-link">Mở link sự kiện ↗</a>
+              <button class="btn-copy-link" (click)="copyLink(ev.link, 'Link Sự Kiện')">Copy</button>
             </div>
           </div>
 
           <div *ngIf="events.length === 0" class="empty-state">
-            Chưa có sự kiện nào. Hãy bấm <b>"Khai Báo Sự Kiện Mới"</b> để thêm đợt sale sắp tới!
+            Chưa có sự kiện nào. Bấm <b>"Khai Báo Sự Kiện"</b> để thêm mới!
           </div>
         </div>
-      </nz-tab>
-
-      <!-- Tab 2: Live Coupons from API -->
-      <nz-tab nzTitle="🎟 Danh Sách Mã Accesstrade">
-        <div class="tab-desc">
-          Mã giảm giá cào từ API network còn hạn sử dụng, tự động xếp theo thời gian hết hạn gần nhất.
-        </div>
-        <nz-table #couponsTable [nzData]="coupons" [nzLoading]="loading" [nzPageSize]="10" nzShowPagination>
-          <thead>
-            <tr>
-              <th nzWidth="130px">Mã Code</th>
-              <th>Tiêu đề / Điều kiện</th>
-              <th nzWidth="150px">Sàn</th>
-              <th nzWidth="180px">Thời Hạn</th>
-              <th nzWidth="120px">Link Nhận</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let c of couponsTable.data">
-              <td>
-                <span class="code-pill">{{ c.code || 'KHÔNG CẦN MÃ' }}</span>
-              </td>
-              <td>
-                <div class="coupon-title-col">
-                  <div class="c-title">{{ c.title }}</div>
-                  <div class="c-detail">{{ c.detail }}</div>
-                </div>
-              </td>
-              <td>
-                <span class="merchant-tag">{{ c.merchant }}</span>
-              </td>
-              <td>
-                <span class="expiry-text">Hết hạn: {{ c.end_at * 1000 | date:'HH:mm dd/MM' }}</span>
-              </td>
-              <td>
-                <a [href]="c.aff_url || c.url" target="_blank" class="aff-link">Lấy mã ↗</a>
-              </td>
-            </tr>
-          </tbody>
-        </nz-table>
       </nz-tab>
     </nz-tabset>
   </div>
@@ -101,32 +179,26 @@
     nzCancelText="Hủy"
   >
     <ng-container *nzModalContent>
-      <div class="modal-form">
-        <div class="form-group">
-          <label>Tên sự kiện / Chiến dịch:</label>
-          <input nz-input [(ngModel)]="newEvent.title" placeholder="VD: Siêu sale 11.11, Flash sale 12h..." />
+      <div class="add-event-form">
+        <div class="form-item">
+          <label>Tên Sự Kiện / Chiến Dịch:</label>
+          <input nz-input placeholder="Ví dụ: Siêu Sale Giữa Tháng 15.10" [(ngModel)]="newEvent.title" />
         </div>
-        <div class="form-group">
-          <label>Sàn thương mại:</label>
-          <input nz-input [(ngModel)]="newEvent.merchant" placeholder="shopee" />
+        <div class="form-item">
+          <label>Thời Gian Bắt Đầu:</label>
+          <input nz-input [(ngModel)]="newEvent.start" placeholder="YYYY-MM-DDTHH:MM:SS" />
         </div>
-        <div class="form-row">
-          <div class="form-group flex-1">
-            <label>Thời gian bắt đầu (ISO):</label>
-            <input nz-input [(ngModel)]="newEvent.start" placeholder="YYYY-MM-DDTHH:MM:SS" />
-          </div>
-          <div class="form-group flex-1">
-            <label>Thời gian kết thúc (ISO):</label>
-            <input nz-input [(ngModel)]="newEvent.end" placeholder="YYYY-MM-DDTHH:MM:SS" />
-          </div>
+        <div class="form-item">
+          <label>Thời Gian Kết Thúc:</label>
+          <input nz-input [(ngModel)]="newEvent.end" placeholder="YYYY-MM-DDTHH:MM:SS" />
         </div>
-        <div class="form-group">
-          <label>Mô tả ngắn voucher/ưu đãi:</label>
-          <input nz-input [(ngModel)]="newEvent.detail" placeholder="VD: Voucher 500k, Freeship đơn 0đ..." />
+        <div class="form-item">
+          <label>Mô Tả & Thể Lệ:</label>
+          <input nz-input placeholder="Ví dụ: Voucher đến 500k, Freeship 0đ" [(ngModel)]="newEvent.detail" />
         </div>
-        <div class="form-group">
-          <label>Link Affiliate (đã dán ID từ network):</label>
-          <input nz-input [(ngModel)]="newEvent.link" placeholder="https://shopee.vn/m/11-11?aff=..." />
+        <div class="form-item">
+          <label>Đường Dẫn Shopee (Gắn link aff hoặc link đích):</label>
+          <input nz-input placeholder="https://shopee.vn/m/..." [(ngModel)]="newEvent.link" />
         </div>
       </div>
     </ng-container>

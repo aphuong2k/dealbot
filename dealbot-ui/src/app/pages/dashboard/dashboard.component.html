@@ -17,6 +17,9 @@
 
       <!-- Quick Action Buttons -->
       <div class="actions-group">
+        <button nz-button class="btn-run-all" (click)="triggerRunAll()" [nzLoading]="actionLoading['all']">
+          🚀 Chạy Toàn Bộ Luồng (Cào Deal ➔ Lập Lịch ➔ Đăng Bài)
+        </button>
         <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="actionLoading['plan']">
           🗓 Lập Lịch Ngày (7h30)
         </button>

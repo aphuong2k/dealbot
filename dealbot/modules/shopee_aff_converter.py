@@ -391,6 +391,7 @@ def convert_to_shopee_aff_link(target_url: str, sub_ids: List[str] = None) -> Di
 
     if aff_id:
         # Link chuẩn Shopee gắn trực tiếp mã Publisher ID
+        tracking_url = build_universal_tracking_link(target_url, aff_id, sub_ids)
         short_url = tracking_url
         name_display = f" ({aff_name})" if aff_name else ""
         return {

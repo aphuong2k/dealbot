@@ -36,6 +36,36 @@ export interface DealItem {
   status: string;
   is_valid: number;
   created_at: number;
+  posted_count?: number;
+  last_posted_at?: number;
+  posts_done_count?: number;
+  latest_post_url?: string;
+  latest_group_name?: string;
+  is_vip?: number;
+  is_mall?: number;
+  brand?: string;
+}
+
+export interface SaleCampaign {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  slot: string;
+  tag: string;
+  is_live_now: boolean;
+  url: string;
+  aff_url: string;
+  banner?: string;
+}
+
+export interface CleanupDealsResult {
+  success: boolean;
+  total_checked: number;
+  still_valid_count: number;
+  removed_count: number;
+  removed_deals: Array<{ id: string; title: string; reason: string }>;
+  message: string;
 }
 
 export interface GroupItem {
@@ -43,6 +73,9 @@ export interface GroupItem {
   name: string;
   niche: string;
   members: number;
+  posts_per_day?: number;
+  activity_text?: string;
+  privacy?: string;
   status: 'candidate' | 'joined' | 'approved' | 'banned' | 'cooling_down' | 'skip';
   allow_link: number;
   account: string;
@@ -71,6 +104,7 @@ export interface PostItem {
   comment_retries: number;
   scheduled_at: number;
   posted_at: number;
+  post_url?: string;
   error?: string;
 }
 
@@ -80,6 +114,8 @@ export interface CouponItem {
   title: string;
   code: string;
   detail: string;
+  category?: string;
+  save_url?: string;
   start_at: number;
   end_at: number;
   url: string;
@@ -108,16 +144,32 @@ export class ApiService {
     return this.http.get<BotStats>(`${this.baseUrl}/stats`);
   }
 
-  getDeals(niche?: string, status?: string, search?: string): Observable<DealItem[]> {
+  getDeals(niche?: string, status?: string, search?: string, isVip?: boolean, isMall?: boolean): Observable<DealItem[]> {
     let params = new HttpParams();
     if (niche) params = params.set('niche', niche);
     if (status) params = params.set('status', status);
     if (search) params = params.set('search', search);
+    if (isVip !== undefined && isVip !== null) params = params.set('is_vip', isVip ? 'true' : 'false');
+    if (isMall !== undefined && isMall !== null) params = params.set('is_mall', isMall ? 'true' : 'false');
     return this.http.get<DealItem[]>(`${this.baseUrl}/deals`, { params });
   }
 
-  crawlDeals(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/deals/crawl`, {});
+  getVipDeals(limit: number = 40): Observable<DealItem[]> {
+    return this.http.get<DealItem[]>(`${this.baseUrl}/deals/vip?limit=${limit}`);
+  }
+
+  crawlDeals(niche?: string): Observable<any> {
+    let params = new HttpParams();
+    if (niche) params = params.set('niche', niche);
+    return this.http.post(`${this.baseUrl}/deals/crawl`, { niche }, { params });
+  }
+
+  cleanupExpiredDeals(deleteFromDb: boolean = true): Observable<CleanupDealsResult> {
+    return this.http.post<CleanupDealsResult>(`${this.baseUrl}/deals/cleanup`, { delete_from_db: deleteFromDb });
+  }
+
+  runFullPipeline(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/pipeline/run-all`, {});
   }
 
   getGroups(status?: string, kind?: string, search?: string, account?: string): Observable<GroupItem[]> {
@@ -157,8 +209,14 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/posts/run-due`, {});
   }
 
-  getCoupons(): Observable<CouponItem[]> {
-    return this.http.get<CouponItem[]>(`${this.baseUrl}/coupons`);
+  getCoupons(category?: string): Observable<CouponItem[]> {
+    let params = new HttpParams();
+    if (category) params = params.set('category', category);
+    return this.http.get<CouponItem[]>(`${this.baseUrl}/coupons`, { params });
+  }
+
+  getDailyCampaigns(): Observable<SaleCampaign[]> {
+    return this.http.get<SaleCampaign[]>(`${this.baseUrl}/coupons/campaigns`);
   }
 
   refreshCoupons(): Observable<any> {
@@ -294,10 +352,61 @@ export class ApiService {
     return this.http.delete(`${this.baseUrl}/groups/remove`, { params });
   }
 
-  importScannedGroups(groups: Array<{ url: string; name?: string; account?: string; status?: string; niche?: string; kind?: string }>): Observable<any> {
+  importScannedGroups(groups: Array<{
+    url: string;
+    name?: string;
+    account?: string;
+    status?: string;
+    niche?: string;
+    kind?: string;
+    members?: number;
+    posts_per_day?: number;
+    activity_text?: string;
+    privacy?: string;
+    priority_score?: number;
+  }>): Observable<any> {
     return this.http.post(`${this.baseUrl}/groups/import-scanned`, { groups });
   }
+
+  testPost(payload: TestPostPayload): Observable<TestPostResult> {
+    return this.http.post<TestPostResult>(`${this.baseUrl}/posts/test`, payload);
+  }
+
+  joinGroup(account: string, groupUrl: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/accounts/${account}/join-group`, { group_url: groupUrl });
+  }
+
+  autoJoinBatch(account: string, limit: number = 5, groupUrls?: string[]): Observable<any> {
+    return this.http.post(`${this.baseUrl}/groups/auto-join-batch`, {
+      account,
+      limit,
+      group_urls: groupUrls
+    });
+  }
+
+  searchNicheGroups(payload: SearchNicheGroupsPayload): Observable<SearchNicheGroupsResult> {
+    return this.http.post<SearchNicheGroupsResult>(`${this.baseUrl}/groups/search-niche`, payload);
+  }
 }
+
+export interface TestPostPayload {
+  account: string;
+  group_url: string;
+  caption: string;
+  comment?: string;
+  dry_run: boolean;
+  image_path?: string;
+}
+
+export interface TestPostResult {
+  success: boolean;
+  status: string;
+  comment_status: string;
+  post_url?: string;
+  dry_run: boolean;
+  message: string;
+}
+
 
 export interface AccountCookieInfo {
   account: string;
@@ -337,6 +446,47 @@ export interface ScannedGroup {
   url: string;
   name: string;
   slug: string;
+  niche?: string;
+  kind?: string;
+}
+
+export interface EvaluatedGroup {
+  url: string;
+  name: string;
+  slug: string;
+  niche: string;
+  kind: 'niche' | 'dealhunt';
+  members: number;
+  posts_per_day: number;
+  privacy: 'public' | 'private';
+  activity_text: string;
+  status: string;
+  is_qualified: boolean;
+  evaluation_note: string;
+  priority_score: number;
+  join_message?: string;
+}
+
+export interface SearchNicheGroupsPayload {
+  account: string;
+  keyword: string;
+  niche?: string;
+  min_members?: number;
+  min_posts_per_day?: number;
+  only_public?: boolean;
+  auto_join?: boolean;
+  max_results?: number;
+  max_scroll?: number;
+}
+
+export interface SearchNicheGroupsResult {
+  success: boolean;
+  message: string;
+  keyword: string;
+  niche: string;
+  groups: EvaluatedGroup[];
+  qualified_count: number;
+  account?: string;
 }
 
 export interface ScanGroupsResult {

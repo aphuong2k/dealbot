@@ -48,7 +48,8 @@ def job_import_review():
 
 def job_deals():
     """Mỗi 3 tiếng: Cào deal, lọc ngưỡng, chấm điểm, tải ảnh & vẽ badge."""
-    added = deals.refresh(cfg)
+    res = deals.refresh(cfg)
+    added = res[0] if isinstance(res, tuple) else res
     if added > 0:
         tg(f"🛒 <b>[Deals]</b> Cào mới: +{added} deal đạt ngưỡng chất lượng.", parse_mode="HTML")
 

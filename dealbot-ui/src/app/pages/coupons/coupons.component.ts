@@ -1,14 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService, CouponItem, EventItem } from '../../services/api.service';
+import { ApiService, CouponItem, EventItem, SaleCampaign } from '../../services/api.service';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
+import { NzTagModule } from 'ng-zorro-antd/tag';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 
 @Component({
   selector: 'app-coupons',
@@ -19,25 +22,45 @@ import { NzTabsModule } from 'ng-zorro-antd/tabs';
     NzTableModule,
     NzButtonModule,
     NzInputModule,
+    NzSelectModule,
     NzSpinModule,
     NzModalModule,
-    NzTabsModule
+    NzTabsModule,
+    NzTagModule,
+    NzToolTipModule
   ],
   templateUrl: './coupons.component.html',
   styleUrls: ['./coupons.component.css']
 })
 export class CouponsComponent implements OnInit {
   coupons: CouponItem[] = [];
+  campaigns: SaleCampaign[] = [];
   events: EventItem[] = [];
+
   loading = false;
+  refreshLoading = false;
   broadcastLoading = false;
+  planDigestLoading = false;
+
+  selectedCategory: string = '';
+  searchQuery: string = '';
+
+  categoryOptions = [
+    { label: '🌐 Tất Cả Loại Mã', value: '' },
+    { label: '🎟 Toàn Sàn & Siêu Voucher', value: 'toan_san' },
+    { label: '🚚 Freeship 0đ & Freeship Xtra', value: 'freeship' },
+    { label: '🎬 Shopee Live & Video (-50%)', value: 'live_video' },
+    { label: '⚡ Khung Giờ Flash Sale (1K - 9K)', value: 'flash_sale' },
+    { label: '💳 Ví ShopeePay & Nạp Thẻ', value: 'shopeepay' },
+    { label: '🛍 Theo Ngành Hàng Chính Hãng', value: 'nganh_hang' }
+  ];
 
   addEventModalVisible = false;
   newEvent: EventItem = {
     title: '',
     merchant: 'shopee',
-    start: '2026-10-10T00:00:00',
-    end: '2026-10-11T23:59:00',
+    start: '2026-10-16T00:00:00',
+    end: '2026-10-18T23:59:00',
     detail: '',
     link: ''
   };
@@ -53,28 +76,74 @@ export class CouponsComponent implements OnInit {
 
   fetchData(): void {
     this.loading = true;
-    this.api.getCoupons().subscribe({
-      next: (c) => this.coupons = c
+    this.api.getCoupons(this.selectedCategory).subscribe({
+      next: (c) => this.coupons = c,
+      error: () => {}
     });
+
+    this.api.getDailyCampaigns().subscribe({
+      next: (camps) => this.campaigns = camps,
+      error: () => {}
+    });
+
     this.api.getEvents().subscribe({
       next: (e) => {
         this.events = e;
         this.loading = false;
       },
-      error: () => this.loading = false
+      error: () => {
+        this.loading = false;
+      }
+    });
+  }
+
+  filterCoupons(): void {
+    this.loading = true;
+    this.api.getCoupons(this.selectedCategory).subscribe({
+      next: (c) => {
+        if (this.searchQuery && this.searchQuery.trim()) {
+          const q = this.searchQuery.toLowerCase();
+          this.coupons = c.filter(item => 
+            (item.title && item.title.toLowerCase().includes(q)) ||
+            (item.code && item.code.toLowerCase().includes(q)) ||
+            (item.detail && item.detail.toLowerCase().includes(q))
+          );
+        } else {
+          this.coupons = c;
+        }
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      }
     });
   }
 
   triggerRefresh(): void {
-    this.loading = true;
+    this.refreshLoading = true;
     this.api.refreshCoupons().subscribe({
       next: (res) => {
-        this.msg.success(res.message);
+        this.refreshLoading = false;
+        this.msg.success(res.message || 'Đã tổng hợp mã Shopee VIP và link lưu mã mới nhất!');
         this.fetchData();
       },
+      error: (err) => {
+        this.refreshLoading = false;
+        this.msg.error(err?.error?.detail || 'Lỗi khi quét tổng hợp mã giảm giá!');
+      }
+    });
+  }
+
+  planDigestToGroups(): void {
+    this.planDigestLoading = true;
+    this.api.planPosts().subscribe({
+      next: (res) => {
+        this.planDigestLoading = false;
+        this.msg.success(res.message || 'Đã lên lịch phân bổ bản tin săn sale hôm nay vào các group!');
+      },
       error: () => {
-        this.loading = false;
-        this.msg.error('Lỗi khi làm mới mã giảm giá!');
+        this.planDigestLoading = false;
+        this.msg.error('Lỗi khi lập lịch bản tin săn sale!');
       }
     });
   }
@@ -84,7 +153,7 @@ export class CouponsComponent implements OnInit {
     this.api.postDigestTelegram().subscribe({
       next: (res) => {
         this.broadcastLoading = false;
-        this.msg.success(res.message);
+        this.msg.success(res.message || 'Đã phát sóng bản tin mã giảm giá lên kênh Telegram!');
       },
       error: () => {
         this.broadcastLoading = false;
@@ -93,12 +162,34 @@ export class CouponsComponent implements OnInit {
     });
   }
 
+  copyLink(url: string, label: string = 'Link Affiliate'): void {
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => {
+      this.msg.success(`Đã copy ${label} vào bộ nhớ tạm!`);
+    }).catch(() => {
+      this.msg.info(`Link: ${url}`);
+    });
+  }
+
+  getCategoryBadge(category?: string): { text: string; color: string } {
+    switch (category) {
+      case 'toan_san': return { text: 'Toàn Sàn', color: 'volcano' };
+      case 'freeship': return { text: 'Freeship', color: 'green' };
+      case 'live_video': return { text: 'Live & Video', color: 'magenta' };
+      case 'flash_sale': return { text: 'Flash Sale', color: 'orange' };
+      case 'shopeepay': return { text: 'ShopeePay', color: 'blue' };
+      case 'nganh_hang': return { text: 'Ngành Hàng', color: 'purple' };
+      default: return { text: 'Khuyến Mãi', color: 'default' };
+    }
+  }
+
   openAddEvent(): void {
+    const now = new Date();
     this.newEvent = {
       title: '',
       merchant: 'shopee',
-      start: new Date().toISOString().slice(0, 19),
-      end: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 19),
+      start: now.toISOString().slice(0, 19),
+      end: new Date(now.getTime() + 86400000 * 3).toISOString().slice(0, 19),
       detail: '',
       link: ''
     };

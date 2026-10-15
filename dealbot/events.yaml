@@ -1,13 +1,56 @@
-# Sự kiện cố định bạn tự cập nhật (link aff dán sẵn từ network). Ví dụ:
-- title: "Flash sale 12h trưa mỗi ngày"
+- title: SIÊU SALE GIỮA THÁNG 15 - NỬA THÁNG NỬA GIÁ
   merchant: shopee
-  start: "2026-10-01T00:00:00"
-  end: "2026-12-31T23:59:00"
-  detail: "Khung giờ săn sale 12h, 0h, 20h"
-  link: "https://shopee.vn/flash_sale?aff=DAN_LINK_AFF"
-- title: "Siêu sale 10.10"
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Voucher giảm 50% giữa tháng, hoàn xu 20%, freeship xtra toàn sàn • Khung
+    giờ: Áp dụng trọn ngày 16/10'
+  link: https://shopee.vn/m/ma-giam-gia?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=megasale&aff_id=17336000126
+- title: 'Khung Giờ 0H: Siêu Sale Hủy Diệt Đêm Khuya'
   merchant: shopee
-  start: "2026-10-08T00:00:00"
-  end: "2026-10-11T00:00:00"
-  detail: "Voucher đến 500k, freeship"
-  link: "https://shopee.vn/m/10-10?aff=DAN_LINK_AFF"
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Deal 0đ, voucher giảm 50% chớp nhoáng, xả hàng tồn kho • Khung giờ: 00:00
+    - 02:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs0h&aff_id=17336000126
+- title: 'Khung Giờ 9H: Đại Tiệc Hàng Hiệu Shopee Mall'
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Thương hiệu chính hãng giảm đến 50%, voucher thương hiệu 100k • Khung giờ:
+    09:00 - 12:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs9h&aff_id=17336000126
+- title: 'Khung Giờ 12H: Nửa Ngày Nửa Giá - Voucher Xtra'
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Nửa ngày nửa giá, voucher xả kho 50%, freeship 0đ mọi đơn • Khung giờ:
+    12:00 - 14:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs12h&aff_id=17336000126
+- title: 'Khung Giờ 15H: Giờ Vàng Quốc Tế & Hàng Hot'
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Deal công nghệ, phụ kiện quốc tế giá sốc từ 1k, freeship xtra • Khung giờ:
+    15:00 - 17:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs15h&aff_id=17336000126
+- title: 'Khung Giờ 18H: Top Deal Bán Chạy & Xu Hướng'
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Các sản phẩm hot trend bán chạy nhất tuần, giảm sâu đến 45% • Khung giờ:
+    18:00 - 21:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs18h&aff_id=17336000126
+- title: 'Khung Giờ 21H: Gì Cũng Rẻ - Đồng Giá 1K & 9K'
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Xả hàng cuối ngày, phụ kiện và gia dụng đồng giá 1k, 9k • Khung giờ: 21:00
+    - 24:00'
+  link: https://shopee.vn/flash_sale?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=fs21h&aff_id=17336000126
+- title: 🎬 ĐẠI TIỆC SHOPEE LIVE & SHOPEE VIDEO
+  merchant: shopee
+  start: '2026-10-16T00:00:00.107407'
+  end: '2026-10-18T23:59:59.107407'
+  detail: 'Voucher giảm 20% - 50% độc quyền chỉ có trên Shopee Live và lướt Video
+    • Khung giờ: Liên tục 24/7 (Đỉnh điểm 12h & 20h)'
+  link: https://shopee.vn/m/shopee-live?utm_source=an_17336000126&utm_medium=affiliates&utm_campaign=default&utm_content=livesale&aff_id=17336000126

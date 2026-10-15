@@ -6,8 +6,24 @@
       <p class="section-subtitle">Deal được tự động lọc theo ngưỡng % giảm giá, đánh giá rating và thuật toán chấm điểm tiềm năng.</p>
     </div>
     <div class="header-actions">
+      <!-- Selector chọn ngành quét deal -->
+      <div class="crawl-select-wrap">
+        <nz-select [(ngModel)]="crawlNiche" style="width: 220px;" nzPlaceHolder="Chọn ngành để quét">
+          <nz-option nzValue="" nzLabel="🌐 Tất Cả Ngành Cấu Hình"></nz-option>
+          <nz-option *ngFor="let n of niches.slice(1)" [nzValue]="n.value" [nzLabel]="'🎯 Ngành: ' + n.label"></nz-option>
+        </nz-select>
+      </div>
+
       <button nz-button class="btn-shopee" (click)="triggerCrawl()" [nzLoading]="crawlLoading">
-        ⚡ Cào Deal Shopee & Flash Sale Ngay
+        ⚡ Cào Deal {{ crawlNiche ? ('Ngành ' + crawlNiche) : 'Shopee' }}
+      </button>
+
+      <button nz-button class="btn-category-browser" (click)="openCategoriesModal()">
+        📂 28 Ngành Shopee
+      </button>
+
+      <button nz-button class="btn-cleanup-deals" (click)="triggerCleanup()" [nzLoading]="cleanupLoading" nz-tooltip nzTooltipTitle="Quét toàn bộ deal trong kho: tự động loại bỏ & xóa các deal đã hết sale, hết hàng hoặc chết link">
+        🧹 Quét & Dọn Deal Hết Sale
       </button>
     </div>
   </div>
@@ -27,6 +43,9 @@
         <nz-option *ngFor="let s of statuses" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
       </nz-select>
     </div>
+    <button nz-button [class.btn-vip-active]="onlyVip" class="btn-vip-filter" (click)="toggleOnlyVip()">
+      👑 {{ onlyVip ? 'Đang Lọc: Deal VIP / Mall' : 'Lọc Deal VIP' }}
+    </button>
     <button nz-button class="btn-outline" (click)="fetchDeals()">
       Lọc Dữ Liệu
     </button>
@@ -60,6 +79,8 @@
             <div class="deal-thumb-wrap">
               <img [src]="d.image || 'https://via.placeholder.com/80'" alt="deal img">
               <span class="badge-discount">-{{ d.discount | number:'1.0-0' }}%</span>
+              <span *ngIf="d.is_mall" class="badge-mall">MALL</span>
+              <span *ngIf="d.is_vip && !d.is_mall" class="badge-vip">VIP</span>
             </div>
           </td>
 
@@ -68,6 +89,8 @@
             <div class="deal-col-title">
               <a [href]="d.url" target="_blank" class="prod-title">{{ d.title }}</a>
               <div class="prod-tags">
+                <span *ngIf="d.is_mall" class="mall-tag">Shopee Mall</span>
+                <span *ngIf="d.is_vip" class="vip-tag">👑 VIP</span>
                 <span class="niche-tag">{{ d.niche }}</span>
                 <span *ngIf="d.is_valid === 1" class="valid-tag">Còn hàng</span>
                 <span *ngIf="d.is_valid === 0" class="invalid-tag">Hết hàng</span>
@@ -100,21 +123,134 @@
             </div>
           </td>
 
-          <!-- Status -->
+          <!-- Status & Posting Info -->
           <td>
             <span *ngIf="d.status === 'new'" class="status-pill status-new">Mới cào</span>
             <span *ngIf="d.status === 'planned'" class="status-pill status-planned">Đã lên lịch</span>
+            <span *ngIf="d.status === 'posted'" class="status-pill status-posted" nz-tooltip [nzTooltipTitle]="'Đã đăng ' + (d.posts_done_count || d.posted_count || 1) + ' lần' + (d.latest_group_name ? ' • Nhóm: ' + d.latest_group_name : '')">
+              🚀 Đã đăng ({{ d.posts_done_count || d.posted_count || 1 }})
+            </span>
             <span *ngIf="d.status === 'expired'" class="status-pill status-expired">Hết hạn</span>
+            
+            <div *ngIf="d.latest_post_url" style="margin-top: 4px;">
+              <a [href]="d.latest_post_url" target="_blank" style="font-size: 11px; color: #38bdf8; display: inline-flex; align-items: center; gap: 2px;">
+                Xem bài FB ↗
+              </a>
+            </div>
           </td>
 
           <!-- Actions -->
           <td>
-            <a [href]="d.aff_url" target="_blank" class="link-aff-btn" nz-tooltip nzTooltipTitle="Mở link affiliate mua hàng">
-              Mua ↗
+            <a [href]="d.aff_url" target="_blank" class="link-aff-btn" nz-tooltip nzTooltipTitle="Mở link Shopee Affiliate của bạn (Publisher: 17336000126)">
+              <span class="aff-badge">AFF</span> Mua ↗
             </a>
           </td>
         </tr>
       </tbody>
     </nz-table>
   </div>
+
+  <!-- Modal 28 Ngành Hàng Shopee -->
+  <nz-modal
+    [(nzVisible)]="categoriesModalVisible"
+    nzTitle="📂 Danh Mục 28 Ngành Hàng Chính Thức Shopee"
+    [nzWidth]="840"
+    (nzOnCancel)="closeCategoriesModal()"
+    [nzFooter]="categoriesModalFooter"
+  >
+    <ng-container *nzModalContent>
+      <nz-spin [nzSpinning]="categoriesLoading">
+        <div class="categories-modal-body">
+          <div class="categories-header-bar">
+            <p class="categories-desc">
+              Chọn trực tiếp ngành hàng bạn muốn cào deal hoặc lưu vào danh sách ngành cấu hình của Bot.
+            </p>
+            <div class="categories-bulk-actions">
+              <button nz-button nzSize="small" (click)="selectAllCategories()">Chọn Tất Cả</button>
+              <button nz-button nzSize="small" (click)="deselectAllCategories()">Bỏ Chọn Tất Cả</button>
+            </div>
+          </div>
+
+          <div class="categories-grid-list">
+            <div *ngFor="let cat of shopeeCategories" class="cat-card-box">
+              <div class="cat-card-head">
+                <label nz-checkbox [ngModel]="selectedCategories[cat.name]" (ngModelChange)="selectedCategories[cat.name] = $event">
+                  <span class="cat-main-title">{{ cat.name }}</span>
+                </label>
+                <button nz-button nzSize="small" class="btn-crawl-this" (click)="crawlSelectedFromModal(cat.name)">
+                  ⚡ Cào Ngành Này
+                </button>
+              </div>
+
+              <!-- Danh mục con (chips) -->
+              <div class="cat-sub-chips" *ngIf="cat.children && cat.children.length > 0">
+                <span
+                  *ngFor="let sub of cat.children"
+                  class="sub-chip"
+                  [class.active]="selectedCategories[sub.name]"
+                  (click)="toggleCategory(sub.name)"
+                >
+                  {{ sub.name }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nz-spin>
+    </ng-container>
+
+    <ng-template #categoriesModalFooter>
+      <button nz-button (click)="closeCategoriesModal()">Đóng</button>
+      <button nz-button class="btn-shopee" [nzLoading]="syncingCategories" (click)="syncCategoriesToNiches()">
+        💾 Lưu Các Ngành Đã Chọn Vào Cấu Hình Bot
+      </button>
+    </ng-template>
+  </nz-modal>
+
+  <!-- Modal Báo Cáo Kết Quả Dọn Dẹp Deal -->
+  <nz-modal
+    [(nzVisible)]="cleanupResultModalVisible"
+    nzTitle="🧹 Báo Cáo Quét & Dọn Dẹp Deal Hết Sale"
+    [nzWidth]="680"
+    (nzOnCancel)="closeCleanupResultModal()"
+    [nzFooter]="cleanupResultModalFooter"
+  >
+    <ng-container *nzModalContent>
+      <div *ngIf="lastCleanupResult" class="cleanup-report-body">
+        <div class="cleanup-summary-cards">
+          <div class="summary-metric-card valid">
+            <span class="metric-num">{{ lastCleanupResult.still_valid_count }}</span>
+            <span class="metric-lbl">Deal Còn Sale</span>
+          </div>
+          <div class="summary-metric-card removed">
+            <span class="metric-num">{{ lastCleanupResult.removed_count }}</span>
+            <span class="metric-lbl">Đã Loại Bỏ & Xóa</span>
+          </div>
+          <div class="summary-metric-card total">
+            <span class="metric-num">{{ lastCleanupResult.total_checked }}</span>
+            <span class="metric-lbl">Tổng Deal Đã Soát</span>
+          </div>
+        </div>
+
+        <p class="cleanup-report-msg">{{ lastCleanupResult.message }}</p>
+
+        <div class="cleanup-list-box" *ngIf="lastCleanupResult.removed_deals && lastCleanupResult.removed_deals.length > 0">
+          <h4 class="cleanup-list-title">Chi tiết các deal đã bị loại bỏ khỏi kho:</h4>
+          <div class="removed-deals-table">
+            <div class="removed-deal-row" *ngFor="let rd of lastCleanupResult.removed_deals">
+              <div class="removed-deal-info">
+                <span class="removed-deal-id">{{ rd.id }}</span>
+                <span class="removed-deal-name">{{ rd.title }}</span>
+              </div>
+              <span class="removed-reason-tag">{{ rd.reason }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <ng-template #cleanupResultModalFooter>
+      <button nz-button nzType="primary" (click)="closeCleanupResultModal()">Đã Hiểu</button>
+    </ng-template>
+  </nz-modal>
 </div>

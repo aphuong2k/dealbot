@@ -219,8 +219,37 @@ def fetch_shopee_categories() -> List[Dict[str, Any]]:
         print("[shopee] Lỗi khi cào danh mục Shopee:", e)
     return []
 
-def crawl_shopee_flash_sale(limit: int = 30) -> List[Dict[str, Any]]:
-    """Cào các deal Flash Sale giảm giá sốc hiện tại trên Shopee."""
+def classify_product_niche(title: str, default_niche: str = "săn sale shopee") -> str:
+    """Tự động phân loại ngành hàng thông minh từ tiêu đề sản phẩm."""
+    if not title:
+        return default_niche
+    t = title.lower()
+    # 1. Mỹ phẩm / Chăm sóc sắc đẹp
+    if any(w in t for w in ["son ", "son môi", "kem ", "phấn", "serum", "mặt nạ", "tẩy trang", "sữa rửa mặt", 
+                           "nước hoa", "dưỡng da", "chống nắng", "trang điểm", "lotion", "mascara", "cushion", 
+                           "toner", "sữa tắm", "dầu gội", "nước tẩy trang", "kem dưỡng", "sắc đẹp", "skincare"]):
+        return "mỹ phẩm"
+    # 2. Gia dụng / Nhà cửa & Đời sống
+    if any(w in t for w in ["nồi", "chảo", "nước giặt", "xả vải", "bếp", "bình giữ nhiệt", "lau nhà", 
+                           "túi rác", "hộp cơm", "dao ", "kệ ", "máy xay", "chổi", "khăn", "drap", 
+                           "ga giường", "chiếu", "gia dụng", "quạt", "đèn ", "vệ sinh", "băng vệ sinh"]):
+        return "gia dụng"
+    # 3. Mẹ & Bé
+    if any(w in t for w in ["sữa bột", "bỉm", "tã", "cho bé", "trẻ em", "bình sữa", "sơ sinh", "núm ti", 
+                           "xe đẩy", "nangrow", "nestle", "ăn dặm", "pha sẵn", "cho con", "mẹ và bé"]):
+        return "mẹ và bé"
+    # 4. Công nghệ / Điện tử
+    if any(w in t for w in ["tai nghe", "sạc", "cáp", "pin dự phòng", "điện thoại", "chuột", "bàn phím", 
+                           "loa", "bluetooth", "cường lực", "ốp lưng", "củ sạc", "mic", "laptop", "máy tính", "công nghệ"]):
+        return "đồ công nghệ giá rẻ"
+    # 5. Thời trang
+    if any(w in t for w in ["áo ", "quần ", "váy", "đầm", "giày", "dép", "sơ mi", "polo", "tất", "vớ", 
+                           "ví ", "balo", "túi xách", "thời trang", "hoodie", "cardigan", "sneaker"]):
+        return "thời trang"
+    return default_niche
+
+def crawl_shopee_flash_sale(limit: int = 60, target_niche: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Cào các deal Flash Sale giảm giá sốc hiện tại trên Shopee, kèm phân loại ngành hàng thông minh."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/json",
@@ -250,29 +279,170 @@ def crawl_shopee_flash_sale(limit: int = 30) -> List[Dict[str, Any]]:
                 except ValueError:
                     discount = round((orig_price - price) / orig_price * 100, 1) if orig_price > price else 0
 
+                # Nếu giảm giá tính được cao hơn discount_str thì ưu tiên
+                if orig_price > price:
+                    calc_disc = round((orig_price - price) / orig_price * 100, 1)
+                    discount = max(discount, calc_disc)
+
                 img_hash = it.get("image") or ""
                 img_url = f"https://down-vn.img.susercontent.com/file/{img_hash}" if img_hash else ""
                 prod_url = f"https://shopee.vn/product/{shopid}/{itemid}" if shopid and itemid else f"https://shopee.vn/flash_sale"
 
-                sold = it.get("promo_sold") or it.get("flash_sale_stock") or 50
+                # LẤY CHÍNH XÁC SỐ LƯỢT BÁN LỊCH SỬ (historical_sold)
+                sold = it.get("historical_sold") or it.get("flash_sale_stock") or it.get("promo_sold") or 100
+                rating = round(float(it.get("item_rating", {}).get("rating_star", 4.9) or 4.9), 1)
+
+                # Phân loại Shopee Mall & Deal VIP
+                is_mall = 1 if (it.get("is_shop_official") or it.get("shop_type") == 1) else 0
+                brand_name = str(it.get("brand") or it.get("brand_sale_brand_custom_logo") or "").strip()
+                is_vip = 1 if (is_mall or brand_name or (discount >= 30 and rating >= 4.7 and sold >= 20)) else 0
+
+                # Tự động gán niche thông minh theo tên sản phẩm
+                prod_niche = classify_product_niche(name)
+                
+                # Nếu người dùng lọc đích danh 1 ngành cụ thể
+                if target_niche and target_niche.lower() not in ("all", "tất cả", ""):
+                    tn = target_niche.lower().strip()
+                    # Khớp niche hoặc khớp từ khóa trong tên
+                    if prod_niche.lower() != tn and tn not in name.lower():
+                        continue
 
                 out.append({
                     "id": f"sp_fs_{itemid}",
-                    "niche": "săn sale shopee",
+                    "niche": prod_niche,
                     "title": name,
                     "price": price,
                     "orig_price": orig_price,
                     "discount": discount,
                     "commission": 10.0,
-                    "rating": 4.9,
+                    "rating": rating,
                     "sold": sold,
                     "url": prod_url,
                     "aff_url": prod_url,
-                    "image": img_url
+                    "image": img_url,
+                    "is_mall": is_mall,
+                    "is_vip": is_vip,
+                    "brand": brand_name
                 })
     except Exception as e:
         print("[shopee] Lỗi khi cào flash sale:", e)
     return out
+
+def get_daily_sale_campaigns() -> List[Dict[str, Any]]:
+    """
+    Tổng hợp các chương trình Sale & Khung giờ vàng trong ngày của Shopee.
+    Tất cả link đều được tự động gắn mã Affiliate của người dùng.
+    """
+    from . import shopee_aff_converter
+    now = time.time()
+    lt = time.localtime(now)
+    day = lt.tm_mday
+    month = lt.tm_mon
+    weekday = lt.tm_wday
+    current_hour = lt.tm_hour
+
+    campaigns = []
+
+    # 1. Chiến dịch lớn theo ngày trong tháng
+    mega_title = ""
+    mega_desc = ""
+    mega_tag = ""
+    if day == month:
+        mega_title = f"🎉 ĐẠI TIỆC SIÊU SALE NGÀY ĐÔI {day}.{month}"
+        mega_desc = "Cơn mưa voucher 500k, freeship 0đ toàn sàn, hàng triệu deal 1k"
+        mega_tag = "SIÊU SALE NGÀY ĐÔI"
+    elif 14 <= day <= 16:
+        mega_title = "🎉 SIÊU SALE GIỮA THÁNG 15 - NỬA THÁNG NỬA GIÁ"
+        mega_desc = "Voucher giảm 50% giữa tháng, hoàn xu 20%, freeship xtra toàn sàn"
+        mega_tag = "SALE GIỮA THÁNG"
+    elif 24 <= day <= 27:
+        mega_title = "🎉 LƯƠNG VỀ SALE TO 25 - XẢ KHO ĐÓN LƯƠNG"
+        mega_desc = "Xả kho hàng hiệu, voucher hoàn xu 100k, giảm giá đến 70%"
+        mega_tag = "LƯƠNG VỀ SALE TO"
+    elif weekday in (5, 6):
+        mega_title = "🎉 SIÊU SALE CUỐI TUẦN - XẢ KHO GIÁ SỐC"
+        mega_desc = "Săn sale thảnh thơi thứ 7 & chủ nhật, deal sốc giảm đến 60%"
+        mega_tag = "SALE CUỐI TUẦN"
+    else:
+        mega_title = f"🎉 CHƯƠNG TRÌNH SĂN SALE SHOPEE HÔM NAY ({day}/{month})"
+        mega_desc = "Tổng hợp deal hời & voucher độc quyền toàn sàn cập nhật liên tục"
+        mega_tag = "SĂN SALE HÔM NAY"
+
+    mega_landing = "https://shopee.vn/m/ma-giam-gia"
+    mega_aff = shopee_aff_converter.convert_to_shopee_aff_link(mega_landing, sub_ids=["mega_sale"]).get("short_link") or mega_landing
+    campaigns.append({
+        "id": "campaign_mega_today",
+        "type": "mega_sale",
+        "title": mega_title,
+        "description": mega_desc,
+        "slot": f"Áp dụng trọn ngày {day}/{month}",
+        "tag": mega_tag,
+        "is_live_now": True,
+        "url": mega_landing,
+        "aff_url": mega_aff,
+        "banner": "https://deo.shopeemobile.com/shopee/shopee-pcmall-live-sg/flashsale/fb1088de81e42c4e538967ec12993772.png"
+    })
+
+    # 2. Khung giờ Flash Sale hiện tại & sắp tới
+    slots = [
+        {"slot": "00:00 - 02:00", "hour": 0, "title": "⚡ Khung Giờ 0H: Siêu Sale Hủy Diệt Đêm Khuya", 
+         "desc": "Deal 0đ, voucher giảm 50% chớp nhoáng, xả hàng tồn kho", "tag": "0H - ĐÊM KHUYA"},
+        {"slot": "09:00 - 12:00", "hour": 9, "title": "⚡ Khung Giờ 9H: Đại Tiệc Hàng Hiệu Shopee Mall", 
+         "desc": "Thương hiệu chính hãng giảm đến 50%, voucher thương hiệu 100k", "tag": "9H - MALL 50%"},
+        {"slot": "12:00 - 14:00", "hour": 12, "title": "⚡ Khung Giờ 12H: Nửa Ngày Nửa Giá - Voucher Xtra", 
+         "desc": "Nửa ngày nửa giá, voucher xả kho 50%, freeship 0đ mọi đơn", "tag": "12H - NỬA GIÁ"},
+        {"slot": "15:00 - 17:00", "hour": 15, "title": "⚡ Khung Giờ 15H: Giờ Vàng Quốc Tế & Hàng Hot", 
+         "desc": "Deal công nghệ, phụ kiện quốc tế giá sốc từ 1k, freeship xtra", "tag": "15H - QUỐC TẾ"},
+        {"slot": "18:00 - 21:00", "hour": 18, "title": "⚡ Khung Giờ 18H: Top Deal Bán Chạy & Xu Hướng", 
+         "desc": "Các sản phẩm hot trend bán chạy nhất tuần, giảm sâu đến 45%", "tag": "18H - XU HƯỚNG"},
+        {"slot": "21:00 - 24:00", "hour": 21, "title": "⚡ Khung Giờ 21H: Gì Cũng Rẻ - Đồng Giá 1K & 9K", 
+         "desc": "Xả hàng cuối ngày, phụ kiện và gia dụng đồng giá 1k, 9k", "tag": "21H - RẺ 1K"}
+    ]
+
+    for s in slots:
+        is_active = (current_hour >= s["hour"] and current_hour < s["hour"] + (3 if s["hour"] in (9,15,18,21) else 2))
+        landing = "https://shopee.vn/flash_sale"
+        aff_res = shopee_aff_converter.convert_to_shopee_aff_link(landing, sub_ids=[f"fs_{s['hour']}h"])
+        aff_url = aff_res.get("short_link") or landing
+        campaigns.append({
+            "id": f"campaign_fs_{s['hour']}",
+            "type": "flash_sale_slot",
+            "title": s["title"],
+            "description": s["desc"],
+            "slot": s["slot"],
+            "tag": s["tag"],
+            "is_live_now": is_active,
+            "url": landing,
+            "aff_url": aff_url,
+            "banner": ""
+        })
+
+    # 3. Chiến dịch Shopee Live & Shopee Video
+    live_landing = "https://shopee.vn/m/shopee-live"
+    live_aff = shopee_aff_converter.convert_to_shopee_aff_link(live_landing, sub_ids=["live_sale"]).get("short_link") or live_landing
+    campaigns.append({
+        "id": "campaign_shopee_live",
+        "type": "shopee_live",
+        "title": "🎬 ĐẠI TIỆC SHOPEE LIVE & SHOPEE VIDEO",
+        "description": "Voucher giảm 20% - 50% độc quyền chỉ có trên Shopee Live và lướt Video",
+        "slot": "Liên tục 24/7 (Đỉnh điểm 12h & 20h)",
+        "tag": "HOT NHẤT HIỆN NAY",
+        "is_live_now": True,
+        "url": live_landing,
+        "aff_url": live_aff,
+        "banner": ""
+    })
+
+    return campaigns
+
+def crawl_shopee_vip_deals(limit: int = 40) -> List[Dict[str, Any]]:
+    """Cào và chọn lọc các deal Shopee VIP / Hàng hiệu chính hãng Shopee Mall."""
+    all_deals = crawl_shopee_flash_sale(limit=limit * 2)
+    # Lọc lấy deal VIP hoặc Mall
+    vip_deals = [d for d in all_deals if d.get("is_vip") == 1 or d.get("is_mall") == 1]
+    # Sắp xếp theo mức giảm và điểm số
+    vip_deals.sort(key=lambda x: (x.get("is_mall", 0), x.get("discount", 0), x.get("sold", 0)), reverse=True)
+    return vip_deals[:limit]
 
 def crawl_shopee_deals_by_keyword(keyword: str, limit: int = 20) -> List[Dict[str, Any]]:
     """Cào sản phẩm deal theo từ khóa/ngành hàng từ Shopee."""
