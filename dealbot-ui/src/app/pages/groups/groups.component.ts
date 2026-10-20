@@ -1,8 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, GroupItem, ScannedGroup, EvaluatedGroup, PostItem, TestPostPayload, TestPostResult, DealItem } from '../../services/api.service';
+import { ApiService, GroupItem, ScannedGroup, EvaluatedGroup, PostItem, TestPostPayload, TestPostResult, DealItem, GradualPostingState } from '../../services/api.service';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -45,10 +45,35 @@ import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
   templateUrl: './groups.component.html',
   styleUrls: ['./groups.component.css']
 })
-export class GroupsComponent implements OnInit {
+export class GroupsComponent implements OnInit, OnDestroy {
   groups: GroupItem[] = [];
   loading = false;
   discoverLoading = false;
+
+  // --- GRADUAL AUTO-POSTING STATE (Inspired by auto-aff) ---
+  gradualPostingState: GradualPostingState = {
+    is_running: false,
+    total_target: 0,
+    completed: 0,
+    current_group: '',
+    current_deal: '',
+    current_account: '',
+    next_post_time: null,
+    remaining_delay: 0,
+    delay_seconds: 60,
+    status: 'IDLE',
+    history: []
+  };
+  gradualPollingTimer: any = null;
+  selectedGroupUrls: string[] = [];
+  gradualDelaySeconds: number = 60;
+  gradualMaxGroups: number = 5;
+  selectedGradualAccount: string = '';
+  gradualDryRun: boolean = false;
+  gradualLinkMode: 'caption' | 'comment' = 'caption';
+  matchedDeals: { [url: string]: any } = {};
+  postingSingleGroup: { [url: string]: boolean } = {};
+
   // --- MAIN NAVIGATION TABS ---
   activeMainTab: 'groups' | 'schedule' | 'manual' | 'auto' = 'groups';
 
@@ -106,11 +131,18 @@ export class GroupsComponent implements OnInit {
   searchQuery = '';
   selectedKind = '';
   selectedAccountFilter = 'all';
+  selectedTargetType: 'posting' | 'lazada_hunter' | 'all' = 'posting';
 
   accountOptions = [
     { label: 'Chưa gán', value: '' },
     { label: 'nick_a', value: 'nick_a' },
     { label: 'nick_b', value: 'nick_b' }
+  ];
+
+  targetTypeOptions = [
+    { label: '📢 Nhóm Đăng Bài (Posting)', value: 'posting' },
+    { label: '🔍 Nhóm Quét Giá Lazada (Hunter)', value: 'lazada_hunter' },
+    { label: '🌐 Tất cả nhóm', value: 'all' }
   ];
 
   // Niche Evaluation & Search
@@ -250,6 +282,16 @@ export class GroupsComponent implements OnInit {
   autoJoinResult: any = null;
   joiningGroupUrl = '';
 
+  // --- BLACKLIST & AUTO-LEAVE STATE ---
+  blacklistedGroups: GroupItem[] = [];
+  blacklistLoading = false;
+  blacklistCandidates: any[] = [];
+  blacklistCandidatesLoading = false;
+  blacklistCandidatesModalVisible = false;
+  cleanBlacklistLoading = false;
+  banningGroupUrl = '';
+  unbanningGroupUrl = '';
+
 
   constructor(
     private api: ApiService,
@@ -271,13 +313,169 @@ export class GroupsComponent implements OnInit {
     this.fetchPosts();
     this.loadActiveGroupsForManual();
     this.loadDealsForManual();
+    this.fetchGradualPostingStatus();
+    this.loadMatchedDeals();
   }
+
+  ngOnDestroy(): void {
+    if (this.gradualPollingTimer) {
+      clearInterval(this.gradualPollingTimer);
+      this.gradualPollingTimer = null;
+    }
+  }
+
+  // --- GRADUAL AUTO-POSTING METHODS (Inspired by auto-aff) ---
+  fetchGradualPostingStatus(): void {
+    this.api.getGradualPostingStatus().subscribe({
+      next: (res) => {
+        this.gradualPostingState = res;
+        if (res.is_running && !this.gradualPollingTimer) {
+          this.gradualPollingTimer = setInterval(() => this.fetchGradualPostingStatus(), 1500);
+        } else if (!res.is_running && this.gradualPollingTimer) {
+          clearInterval(this.gradualPollingTimer);
+          this.gradualPollingTimer = null;
+          this.fetchGroups();
+          this.fetchPosts();
+        }
+      },
+      error: (err) => console.error('Lỗi nạp trạng thái đăng bài dần:', err)
+    });
+  }
+
+  startSequentialPosting(): void {
+    if (this.gradualPostingState.is_running) {
+      this.msg.info('Tiến trình đăng bài đang chạy, vui lòng chờ hoặc bấm Dừng!');
+      return;
+    }
+
+    let targetUrls = [...this.selectedGroupUrls];
+    if (targetUrls.length === 0) {
+      const activePostingGroups = this.groups.filter(g => (g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter');
+      if (activePostingGroups.length === 0) {
+        this.msg.warning('Không có nhóm Đăng Bài Bán Hàng nào ở trạng thái ĐÃ VÀO (Joined)!');
+        return;
+      }
+      this.selectAllJoinedGroups();
+      targetUrls = this.selectedGroupUrls;
+    }
+
+    const delay = this.gradualDelaySeconds || 60;
+    const accLabel = this.selectedGradualAccount ? ` bằng [${this.selectedGradualAccount}]` : ' (Tự động luân phiên)';
+    const modeLabel = this.gradualLinkMode === 'comment' ? ' (Link để ở comment)' : ' (Link trong bài viết)';
+    this.msg.info(`Đang khởi động đăng bài tuần tự vào ${targetUrls.length} nhóm (nhịp nghỉ ${delay}s)${accLabel}${modeLabel}...`);
+
+    this.api.startGradualPosting({
+      group_urls: targetUrls,
+      delay_seconds: delay,
+      account: this.selectedGradualAccount || undefined,
+      dry_run: this.gradualDryRun,
+      link_in_comment: this.gradualLinkMode === 'comment'
+    }).subscribe({
+      next: (res) => {
+        this.msg.success(res.message || 'Đã khởi động tiến trình đăng bài tuần tự!');
+        this.fetchGradualPostingStatus();
+      },
+      error: (err) => this.msg.error(err?.error?.detail || err?.message || 'Lỗi khởi động đăng bài!')
+    });
+  }
+
+  stopGradualPosting(): void {
+    this.api.stopGradualPosting().subscribe({
+      next: (res) => {
+        this.msg.info(res.message || 'Đã gửi tín hiệu dừng chu trình đăng bài!');
+        this.fetchGradualPostingStatus();
+      },
+      error: (err) => this.msg.error(err?.message || 'Lỗi khi gửi yêu cầu dừng!')
+    });
+  }
+
+  postSingleGroupDirect(group: GroupItem): void {
+    if (group.target_type === 'lazada_hunter') {
+      this.msg.warning('Đây là nhóm chuyên Quét Giá Thị Trường Lazada, không dùng để đăng bài bán hàng!');
+      return;
+    }
+    const url = group.url;
+    this.postingSingleGroup[url] = true;
+    const acc = this.selectedGradualAccount || group.account || undefined;
+    const accLabel = acc ? ` (bằng ${acc})` : '';
+    this.msg.info(`Đang đăng bài vào nhóm [${group.name || url}]${accLabel}...`);
+
+    this.api.postSingleGroup({
+      group_url: url,
+      account: acc,
+      dry_run: this.gradualDryRun,
+      link_in_comment: this.gradualLinkMode === 'comment'
+    }).subscribe({
+      next: (res) => {
+        this.postingSingleGroup[url] = false;
+        this.msg.success(res.message || `Đã đăng bài thành công vào nhóm [${group.name}]!`);
+        this.fetchGroups();
+        this.fetchPosts();
+      },
+      error: (err) => {
+        this.postingSingleGroup[url] = false;
+        const msg = err?.error?.detail || err?.message || 'Lỗi khi đăng bài';
+        this.msg.error(`Lỗi đăng bài [${group.name}]: ${msg}`);
+      }
+    });
+  }
+
+  loadMatchedDeals(): void {
+    this.api.getGroupMatchedDeals().subscribe({
+      next: (data) => this.matchedDeals = data || {},
+      error: (err) => console.error('Lỗi tải sản phẩm khớp chuẩn:', err)
+    });
+  }
+
+  // --- GROUP SELECTION METHODS ---
+  isGroupSelected(url: string): boolean {
+    return this.selectedGroupUrls.includes(url);
+  }
+
+  toggleGroupSelect(url: string): void {
+    const idx = this.selectedGroupUrls.indexOf(url);
+    if (idx > -1) {
+      this.selectedGroupUrls.splice(idx, 1);
+    } else {
+      this.selectedGroupUrls.push(url);
+    }
+  }
+
+  isAllGroupsSelected(): boolean {
+    const targetGroups = this.groups.filter(g => (g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter');
+    if (targetGroups.length === 0) return false;
+    return targetGroups.every(g => this.selectedGroupUrls.includes(g.url));
+  }
+
+  toggleSelectAllGroups(): void {
+    const targetGroups = this.groups.filter(g => (g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter');
+    if (this.isAllGroupsSelected()) {
+      const targetUrls = new Set(targetGroups.map(g => g.url));
+      this.selectedGroupUrls = this.selectedGroupUrls.filter(u => !targetUrls.has(u));
+    } else {
+      const newUrls = new Set(this.selectedGroupUrls);
+      targetGroups.forEach(g => newUrls.add(g.url));
+      this.selectedGroupUrls = Array.from(newUrls);
+    }
+  }
+
+  selectAllJoinedGroups(): void {
+    const targetGroups = this.groups.filter(g => (g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter');
+    this.selectedGroupUrls = targetGroups.map(g => g.url);
+    this.msg.info(`Đã chọn toàn bộ ${this.selectedGroupUrls.length} nhóm Đăng Bài đã tham gia!`);
+  }
+
+  deselectAllGroups(): void {
+    this.selectedGroupUrls = [];
+  }
+
 
   fetchGroups(): void {
     this.loading = true;
     const statusParam = this.selectedTab === 'all' ? undefined : this.selectedTab;
     const accountParam = this.selectedAccountFilter === 'all' ? undefined : this.selectedAccountFilter;
-    this.api.getGroups(statusParam, this.selectedKind || undefined, this.searchQuery || undefined, accountParam).subscribe({
+    const targetTypeParam = this.selectedTargetType === 'all' ? undefined : this.selectedTargetType;
+    this.api.getGroups(statusParam, this.selectedKind || undefined, this.searchQuery || undefined, accountParam, targetTypeParam).subscribe({
       next: (data) => {
         this.groups = data;
         this.loading = false;
@@ -286,6 +484,19 @@ export class GroupsComponent implements OnInit {
         this.loading = false;
         this.msg.error('Không thể tải danh sách nhóm!');
       }
+    });
+  }
+
+  toggleTargetType(g: GroupItem): void {
+    const newTarget = g.target_type === 'lazada_hunter' ? 'posting' : 'lazada_hunter';
+    this.api.updateGroup(g.url, { target_type: newTarget }).subscribe({
+      next: () => {
+        g.target_type = newTarget;
+        const label = newTarget === 'lazada_hunter' ? 'Nhóm Quét Giá Lazada' : 'Nhóm Đăng Bài Bán Hàng';
+        this.msg.success(`Đã chuyển nhóm sang "${label}" thành công!`);
+        this.fetchGroups();
+      },
+      error: () => this.msg.error('Lỗi khi chuyển mục đích nhóm!')
     });
   }
 
@@ -299,6 +510,13 @@ export class GroupsComponent implements OnInit {
     const tabs = ['all', 'candidate', 'joined', 'cooling_down', 'banned'];
     this.selectedTab = tabs[index] || 'all';
     this.fetchGroups();
+    if (this.selectedTab === 'banned') {
+      this.fetchBlacklist();
+    }
+  }
+
+  get bannedGroups(): GroupItem[] {
+    return this.groups.filter(g => g.status === 'banned');
   }
 
   get filteredScannedGroups(): ScannedGroup[] {
@@ -448,9 +666,107 @@ export class GroupsComponent implements OnInit {
       next: (res) => {
         this.msg.success(res.message);
         this.groups = this.groups.filter(item => item.url !== g.url);
+        this.blacklistedGroups = this.blacklistedGroups.filter(item => item.url !== g.url);
       },
       error: (err) => {
         this.msg.error(err?.error?.detail || 'Lỗi khi xóa group!');
+      }
+    });
+  }
+
+  // --- BLACKLIST & AUTO-LEAVE METHODS ---
+  fetchBlacklist(): void {
+    this.blacklistLoading = true;
+    this.api.getBlacklistedGroups().subscribe({
+      next: (groups) => {
+        this.blacklistedGroups = groups || [];
+        this.blacklistLoading = false;
+      },
+      error: () => {
+        this.blacklistLoading = false;
+        this.msg.error('Không thể tải danh sách đen các nhóm!');
+      }
+    });
+  }
+
+  scanAndCleanBlacklist(autoLeaveFb: boolean = true): void {
+    this.cleanBlacklistLoading = true;
+    const leaveLabel = autoLeaveFb ? 'đồng thời rời nhóm trên Facebook' : 'chỉ đánh dấu trong hệ thống';
+    this.msg.info(`Đang quét dọn các nhóm vi phạm (${leaveLabel})...`);
+
+    this.api.scanAndCleanBlacklist({ auto_leave_fb: autoLeaveFb, max_groups: 5 }).subscribe({
+      next: (res) => {
+        this.cleanBlacklistLoading = false;
+        const cleaned = res.cleaned_count || 0;
+        const total = res.total_bad_found || 0;
+        if (cleaned > 0) {
+          this.msg.success(`Đã phát hiện ${total} nhóm vi phạm, thanh lọc và out thành công ${cleaned} nhóm vào Danh Sách Đen!`);
+        } else if (total > 0) {
+          this.msg.warning(`Tìm thấy ${total} nhóm vi phạm nhưng không có nhóm nào đủ điều kiện out đợt này.`);
+        } else {
+          this.msg.info('✨ Tuyệt vời! Không phát hiện nhóm nào vi phạm (cấm đăng/pending duyệt/lỗi liên tiếp).');
+        }
+        this.fetchGroups();
+        this.fetchBlacklist();
+        if (this.blacklistCandidatesModalVisible) {
+          this.blacklistCandidatesModalVisible = false;
+        }
+      },
+      error: (err) => {
+        this.cleanBlacklistLoading = false;
+        this.msg.error(err?.error?.detail || err?.message || 'Lỗi khi quét dọn nhóm vi phạm!');
+      }
+    });
+  }
+
+  openBlacklistCandidatesModal(): void {
+    this.blacklistCandidatesModalVisible = true;
+    this.blacklistCandidatesLoading = true;
+    this.blacklistCandidates = [];
+    this.api.getBlacklistCandidates(3, 2).subscribe({
+      next: (candidates) => {
+        this.blacklistCandidates = candidates || [];
+        this.blacklistCandidatesLoading = false;
+      },
+      error: () => {
+        this.blacklistCandidatesLoading = false;
+        this.msg.error('Lỗi khi tải danh sách nhóm có nguy cơ vi phạm!');
+      }
+    });
+  }
+
+  closeBlacklistCandidatesModal(): void {
+    this.blacklistCandidatesModalVisible = false;
+  }
+
+  banSingleGroup(g: GroupItem, autoLeave: boolean = true): void {
+    this.banningGroupUrl = g.url;
+    this.api.banGroupManual(g.url, 'Người dùng đưa vào Danh Sách Đen thủ công', autoLeave, g.account).subscribe({
+      next: (res) => {
+        this.banningGroupUrl = '';
+        this.msg.success(`Đã đưa nhóm [${g.name || g.url}] vào Danh Sách Đen thành công!`);
+        this.fetchGroups();
+        this.fetchBlacklist();
+      },
+      error: (err) => {
+        this.banningGroupUrl = '';
+        this.msg.error(err?.error?.detail || err?.message || 'Lỗi khi chặn nhóm!');
+      }
+    });
+  }
+
+  unbanSingleGroup(g: GroupItem): void {
+    this.unbanningGroupUrl = g.url;
+    this.api.unbanGroup(g.url, 'candidate').subscribe({
+      next: (res) => {
+        this.unbanningGroupUrl = '';
+        this.msg.success(`Đã mở khóa nhóm [${g.name || g.url}] khỏi Danh Sách Đen (chuyển về Candidate)!`);
+        this.fetchGroups();
+        this.fetchBlacklist();
+      },
+      error: (err) => {
+        this.unbanningGroupUrl = '';
+        this.msg.error(err?.error?.detail || err?.message || 'Lỗi khi gỡ chặn nhóm!');
       }
     });
   }
@@ -509,6 +825,10 @@ export class GroupsComponent implements OnInit {
   // --- AUTO JOIN GROUP METHODS ---
   get candidateGroups(): GroupItem[] {
     return this.groups.filter(g => g.status === 'candidate');
+  }
+
+  get joinedGroups(): GroupItem[] {
+    return this.groups.filter(g => (g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter');
   }
 
   openAutoJoinModal(): void {
@@ -848,7 +1168,7 @@ export class GroupsComponent implements OnInit {
   // --- MANUAL POST STUDIO LOGIC ---
   // ==========================================
   loadActiveGroupsForManual(): void {
-    this.api.getGroups().subscribe({
+    this.api.getGroups(undefined, undefined, undefined, undefined, 'posting').subscribe({
       next: (groups) => {
         this.activeJoinedGroups = groups.filter(g => g.status === 'joined' || g.status === 'approved' || g.status === 'candidate');
         if (this.activeJoinedGroups.length > 0 && !this.manualForm.group_url) {

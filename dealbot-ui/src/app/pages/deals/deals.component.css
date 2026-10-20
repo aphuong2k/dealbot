@@ -372,6 +372,25 @@
   transform: translateY(-1px);
 }
 
+.btn-clear-deals {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-clear-deals:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
 /* --- Modal Báo Cáo Dọn Dẹp Deal --- */
 .cleanup-report-body {
   display: flex;

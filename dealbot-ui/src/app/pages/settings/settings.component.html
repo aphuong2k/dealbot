@@ -265,6 +265,7 @@
                 <span class="result-badge-success">
                   ✅ THÀNH CÔNG
                   <ng-container *ngIf="convertResult.method === 'open_api'"> (Qua Shopee Open API: s.shopee.vn)</ng-container>
+                  <ng-container *ngIf="convertResult.method === 'portal_web' || convertResult.method === 'portal_direct_gql' || convertResult.method === 'cache'"> (Qua Cổng Web Shopee Affiliate: s.shopee.vn)</ng-container>
                   <ng-container *ngIf="convertResult.method === 'universal_tracking'"> (Gắn Publisher ID: {{ convertResult.affiliate_id }})</ng-container>
                 </span>
                 <span *ngIf="convertResult.affiliate_name" class="aff-owner-tag">👤 {{ convertResult.affiliate_name }}</span>

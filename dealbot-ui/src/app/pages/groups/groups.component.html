@@ -49,7 +49,101 @@
   <!-- TAB 1: QUẢN LÝ NHÓM FACEBOOK                                              -->
   <!-- ========================================================================= -->
   <div *ngIf="activeMainTab === 'groups'" class="tab-pane-content">
+
+    <!-- Gradual Auto-Poster Control Card (Kế thừa kiến trúc chuẩn từ auto-aff) -->
+    <div class="gradual-poster-card glass-card">
+      <div class="gradual-header-row">
+        <div class="gradual-header-info">
+          <h3 class="gradual-title">
+            <span class="rocket-icon">🚀</span> Tự Động Đăng Bài Dần Vào Nhóm (Gradual Auto-Poster)
+          </h3>
+          <p class="gradual-desc">
+            Hệ thống tự động khớp Deal hời từ kho theo đúng ngành hàng của nhóm (Thời trang nam, nữ, công nghệ, gia dụng, săn deal 1K) và đăng bài dần dần với khoảng nghỉ an toàn chống checkpoint / spam của Facebook.
+          </p>
+          <div class="gradual-sub-badge">
+            <span>🎯</span> 100% Khớp Deal Chuẩn Ngành • Playwright Auto-Composer • Chờ aria-disabled=false • Chống Checkpoint
+          </div>
+        </div>
+
+        <div class="gradual-btn-group">
+          <button *ngIf="!gradualPostingState.is_running" class="btn-gradual-start" (click)="startSequentialPosting()">
+            ▶ Bắt Đầu Đăng Tuần Tự ({{ selectedGroupUrls.length > 0 ? selectedGroupUrls.length + ' nhóm đã chọn' : 'Toàn bộ ' + joinedGroups.length + ' nhóm đã vào' }})
+          </button>
+          <button *ngIf="gradualPostingState.is_running" class="btn-gradual-stop" (click)="stopGradualPosting()">
+            ⏹ Dừng Chu Trình
+          </button>
+          <button class="btn-gradual-action" (click)="selectAllJoinedGroups()" title="Chọn nhanh toàn bộ các nhóm đã tham gia">
+            ☑️ Chọn Tất Cả ({{ joinedGroups.length }} Nhóm)
+          </button>
+          <button *ngIf="selectedGroupUrls.length > 0" class="btn-gradual-action outline" (click)="deselectAllGroups()">
+            ✕ Bỏ chọn ({{ selectedGroupUrls.length }})
+          </button>
+        </div>
+      </div>
+
+      <!-- Configuration Controls Row -->
+      <div class="gradual-config-grid">
+        <div class="config-col">
+          <label class="config-label">Khoảng nghỉ an toàn giữa các bài:</label>
+          <div class="config-input-wrap">
+            <input type="number" min="10" max="600" [(ngModel)]="gradualDelaySeconds" class="config-num-input">
+            <span class="config-unit">giây (~{{ (gradualDelaySeconds / 60) | number:'1.1-1' }} phút)</span>
+          </div>
+        </div>
+
+        <div class="config-col">
+          <label class="config-label">Nick Facebook thực thi bài đăng:</label>
+          <nz-select [(ngModel)]="selectedGradualAccount" style="width: 100%;">
+            <nz-option nzValue="" nzLabel="🔄 Tự động luân phiên (Tất cả nick active)"></nz-option>
+            <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? '👤 ' + opt.label : '👤 Mặc định'"></nz-option>
+          </nz-select>
+        </div>
+
+        <div class="config-col">
+          <label class="config-label">Chế độ kiểm thử (Dry Run):</label>
+          <div class="dry-run-wrap">
+            <nz-switch [(ngModel)]="gradualDryRun" nzCheckedChildren="Chạy Thử (Dry Run)" nzUnCheckedChildren="Đăng Thật Lên FB"></nz-switch>
+            <span class="dry-run-hint" [class.hint-active]="!gradualDryRun">{{ gradualDryRun ? '⚠️ Mô phỏng (không tạo bài thật)' : '🟢 Đăng bài thật lên Facebook' }}</span>
+          </div>
+        </div>
+
+        <div class="config-col">
+          <label class="config-label">Cơ chế đặt Link Affiliate:</label>
+          <nz-select [(ngModel)]="gradualLinkMode" style="width: 100%;">
+            <nz-option nzValue="caption" nzLabel="📌 Link trong bài viết (Không comment)"></nz-option>
+            <nz-option nzValue="comment" nzLabel="💬 Để link ở bình luận 1"></nz-option>
+          </nz-select>
+        </div>
+      </div>
+
+      <!-- Live Progress Status Bar -->
+      <div *ngIf="gradualPostingState.is_running" class="gradual-progress-bar">
+        <div class="progress-left">
+          <span class="pulse-dot"></span>
+          <span class="progress-text">
+            <strong>Đang đăng bài tuần tự:</strong> Đã hoàn tất <strong>{{ gradualPostingState.completed }} / {{ gradualPostingState.total_target }}</strong> nhóm.
+            Đang xử lý: <span class="highlight-group">[{{ gradualPostingState.current_group }}]</span>
+            <span *ngIf="gradualPostingState.current_deal" class="highlight-deal"> • {{ gradualPostingState.current_deal }}</span>
+          </span>
+        </div>
+        <div class="progress-right">
+          <div *ngIf="gradualPostingState.remaining_delay > 0" class="countdown-badge">
+            ⏳ Nhịp nghỉ an toàn: còn <strong>{{ gradualPostingState.remaining_delay }}s</strong>...
+          </div>
+          <div *ngIf="gradualPostingState.next_post_time" class="next-time-text">
+            Tiếp theo: <strong>{{ gradualPostingState.next_post_time }}</strong>
+          </div>
+          <button class="btn-stop-small" (click)="stopGradualPosting()">⏹ Dừng</button>
+        </div>
+      </div>
+
+      <div *ngIf="!gradualPostingState.is_running && gradualPostingState.status === 'FINISHED'" class="gradual-finished-bar">
+        🎉 Phiên đăng bài tuần tự đã hoàn thành! Đã đăng thành công vào {{ gradualPostingState.completed }} nhóm. Bạn có thể xem kết quả trong tab Lịch Trình.
+      </div>
+    </div>
+
     <!-- Group Action Buttons Bar -->
+
     <div class="sub-header-actions glass-card">
       <div class="sub-header-left">
         <span class="sub-header-title">Thao tác hội nhóm:</span>
@@ -79,7 +173,7 @@
         <nz-tab nzTitle="⏳ Chờ duyệt (Candidate)"></nz-tab>
         <nz-tab nzTitle="✅ Đang hoạt động (Joined)"></nz-tab>
         <nz-tab nzTitle="⚠️ Đang phạt (Cooling Down)"></nz-tab>
-        <nz-tab nzTitle="🚫 Đã chặn (Banned)"></nz-tab>
+        <nz-tab nzTitle="🚫 Danh Sách Đen (Blacklist)"></nz-tab>
       </nz-tabset>
 
       <!-- Search & Filter Bar -->
@@ -87,6 +181,9 @@
         <div class="search-input-wrap">
           <input nz-input class="search-input-bright" placeholder="🔍 Tìm kiếm nhóm theo tên hoặc URL..." [(ngModel)]="searchQuery" (keyup.enter)="fetchGroups()" />
         </div>
+        <nz-select [(ngModel)]="selectedTargetType" (ngModelChange)="fetchGroups()" style="width: 230px;" nzPlaceHolder="Mục đích nhóm">
+          <nz-option *ngFor="let opt of targetTypeOptions" [nzValue]="opt.value" [nzLabel]="opt.label"></nz-option>
+        </nz-select>
         <nz-select [(ngModel)]="selectedAccountFilter" (ngModelChange)="fetchGroups()" style="width: 185px;" nzPlaceHolder="Lọc theo nick">
           <nz-option nzValue="all" nzLabel="👥 Tất cả tài khoản"></nz-option>
           <nz-option *ngFor="let opt of accountOptions" [nzValue]="opt.value" [nzLabel]="opt.label ? '👤 ' + opt.label : '👤 Chưa gán'"></nz-option>
@@ -94,10 +191,58 @@
         <button nz-button class="btn-filter-primary" (click)="fetchGroups()">
           🔍 Lọc
         </button>
-        <button nz-button class="btn-filter-reset" (click)="resetFilters()" *ngIf="searchQuery || selectedAccountFilter !== 'all'">
+        <button nz-button class="btn-filter-reset" (click)="resetFilters()" *ngIf="searchQuery || selectedAccountFilter !== 'all' || selectedTargetType !== 'posting'">
           🔄 Đặt lại
         </button>
         <span class="group-count-badge">Tổng: <b>{{ groups.length }}</b> nhóm</span>
+      </div>
+    </div>
+
+    <!-- Dedicated Blacklist Control Banner (Hiển thị nổi bật khi ở tab Danh Sách Đen) -->
+    <div *ngIf="selectedTab === 'banned'" class="blacklist-control-card glass-card">
+      <div class="blacklist-header-row">
+        <div class="blacklist-info">
+          <h3 class="blacklist-title">
+            <span class="shield-icon">🛡️</span> Quản Lý Danh Sách Đen & Tự Động Rời Nhóm (Auto-Leave Blacklist)
+          </h3>
+          <p class="blacklist-desc">
+            Hệ thống tự động phát hiện các nhóm vi phạm: <strong>Cấm/hạn chế đăng bài</strong>, <strong>bắt duyệt bài liên tiếp (Pending Approval)</strong>, hoặc <strong>đăng bài thất bại liên tiếp ≥ 3 lần</strong>. Nhóm vi phạm sẽ được tự động out trên Facebook qua Playwright và khóa vĩnh viễn trong Danh Sách Đen, tuyệt đối không bao giờ tự động join lại.
+          </p>
+          <div class="blacklist-tags-row">
+            <span class="bl-tag">🚫 Tuyệt đối không Join lại</span>
+            <span class="bl-tag">🧹 Tự động out trên FB qua Playwright</span>
+            <span class="bl-tag">⏳ Lọc nhóm bắt duyệt pending liên tiếp</span>
+            <span class="bl-tag">🛡️ Bảo vệ an toàn nick & uy tín tài khoản</span>
+          </div>
+        </div>
+
+        <div class="blacklist-actions-group">
+          <button 
+            nz-button 
+            class="btn-clean-blacklist" 
+            (click)="scanAndCleanBlacklist(true)" 
+            [nzLoading]="cleanBlacklistLoading"
+            title="Quét tìm toàn bộ nhóm bắt duyệt / cấm đăng, tự động mở Playwright để rời nhóm trên Facebook và đưa vào Danh Sách Đen"
+          >
+            🧹 Quét & Rời Nhóm Vi Phạm (Auto-Leave)
+          </button>
+          <button 
+            nz-button 
+            class="btn-candidates-preview" 
+            (click)="openBlacklistCandidatesModal()"
+            title="Xem trước các nhóm đang có dấu hiệu vi phạm cần thanh lọc"
+          >
+            🔍 Soi Nhóm Có Nguy Cơ (Preview)
+          </button>
+          <button 
+            nz-button 
+            class="btn-refresh-bl" 
+            (click)="fetchBlacklist(); fetchGroups();" 
+            [nzLoading]="blacklistLoading"
+          >
+            🔄 Tải Lại DS Đen
+          </button>
+        </div>
       </div>
     </div>
 
@@ -113,18 +258,27 @@
       >
         <thead>
           <tr>
+            <th nzWidth="46px" style="text-align: center;">
+              <input type="checkbox" [checked]="isAllGroupsSelected()" (change)="toggleSelectAllGroups()" style="cursor: pointer; width: 16px; height: 16px; accent-color: #f97316;" title="Chọn tất cả nhóm đã vào">
+            </th>
             <th>Tên Nhóm Facebook</th>
             <th nzWidth="130px">Loại / Ngách</th>
-            <th nzWidth="160px">Quy Mô / Tương Tác</th>
-            <th nzWidth="140px">Nick Phụ Trách</th>
-            <th nzWidth="150px">Điểm Uy Tín (0-200)</th>
-            <th nzWidth="110px">Cho Link Aff</th>
-            <th nzWidth="130px">Thành Công / Lỗi</th>
-            <th nzWidth="240px">Thao Tác</th>
+            <th nzWidth="210px">Sản Phẩm Khớp Chuẩn</th>
+            <th nzWidth="150px">Quy Mô / Tương Tác</th>
+            <th nzWidth="130px">Nick Phụ Trách</th>
+            <th nzWidth="140px">Điểm Uy Tín</th>
+            <th nzWidth="100px">Cho Link</th>
+            <th nzWidth="120px">Thành Công / Lỗi</th>
+            <th nzWidth="250px">Thao Tác</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let g of groupsTable.data">
+          <tr *ngFor="let g of groupsTable.data" [style.background]="isGroupSelected(g.url) ? 'rgba(249, 115, 22, 0.08)' : null">
+            <!-- Select Checkbox -->
+            <td style="text-align: center;">
+              <input type="checkbox" [checked]="isGroupSelected(g.url)" (change)="toggleGroupSelect(g.url)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #f97316;">
+            </td>
+
             <!-- Name & Link -->
             <td>
               <div class="group-col-name">
@@ -132,6 +286,24 @@
                   {{ g.name || 'Group Facebook' }} ↗
                 </a>
                 <span class="group-url-text">{{ g.url }}</span>
+                <div *ngIf="g.last_error" class="group-error-pill" [class.banned-pill]="g.status === 'banned'" [title]="g.last_error">
+                  <span class="err-icon">{{ g.status === 'banned' ? '🚫' : '⚠️' }}</span>
+                  <span class="err-text">{{ g.last_error }}</span>
+                </div>
+                <div style="margin-top: 4px;">
+                  <span *ngIf="g.target_type === 'lazada_hunter'"
+                        (click)="toggleTargetType(g)"
+                        nz-tooltip nzTooltipTitle="Nhấp để chuyển sang Nhóm Đăng Bài Bán Hàng"
+                        style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4); cursor: pointer; transition: all 0.2s;">
+                    🎯 Quét Giá Lazada <span style="font-size: 9px; opacity: 0.8;">⇄ Chuyển</span>
+                  </span>
+                  <span *ngIf="!g.target_type || g.target_type === 'posting'"
+                        (click)="toggleTargetType(g)"
+                        nz-tooltip nzTooltipTitle="Nhấp để chuyển sang Nhóm Quét Giá Thị Trường Lazada"
+                        style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); cursor: pointer; transition: all 0.2s;">
+                    📢 Đăng Bài Bán Hàng <span style="font-size: 9px; opacity: 0.8;">⇄ Chuyển</span>
+                  </span>
+                </div>
               </div>
             </td>
 
@@ -139,6 +311,23 @@
             <td>
               <span *ngIf="g.kind === 'dealhunt'" class="badge-dealhunt">Săn Sale</span>
               <span *ngIf="g.kind !== 'dealhunt'" class="badge-niche">{{ g.niche }}</span>
+            </td>
+
+            <!-- Matched Deal Preview (Khớp chuẩn ngành từ auto-aff) -->
+            <td>
+              <div *ngIf="matchedDeals[g.url] as md" class="matched-deal-cell">
+                <img *ngIf="md.image" [src]="md.image" class="matched-deal-thumb" alt="deal" />
+                <div class="matched-deal-info">
+                  <div class="matched-deal-title" [title]="md.title">{{ md.title }}</div>
+                  <div class="matched-deal-price">
+                    <span class="price-val">{{ md.price | number }}đ</span>
+                    <span *ngIf="md.discount" class="discount-pill">-{{ md.discount }}%</span>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="!matchedDeals[g.url]" class="matched-deal-empty">
+                <span class="empty-hint">🎯 Khớp tự động theo ngành</span>
+              </div>
             </td>
 
             <!-- Scale & Activity -->
@@ -203,6 +392,20 @@
             <td>
               <div class="actions-cell">
                 <button
+                  *ngIf="(g.status === 'joined' || g.status === 'approved') && g.target_type !== 'lazada_hunter'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-post-now-direct"
+                  (click)="postSingleGroupDirect(g)"
+                  [nzLoading]="postingSingleGroup[g.url]"
+                  title="Đăng ngay lập tức sản phẩm khớp chuẩn lên nhóm này bằng Bot Playwright"
+                >
+                  🚀 Đăng Ngay
+                </button>
+                <span *ngIf="g.target_type === 'lazada_hunter'" style="font-size: 11px; color: #a78bfa; background: rgba(167, 139, 250, 0.15); border: 1px dashed rgba(167, 139, 250, 0.4); padding: 3px 8px; border-radius: 6px;" nz-tooltip nzTooltipTitle="Nhóm này được tách biệt chuyên dùng để cào bài quét giá thị trường Lazada, không đăng bài">
+                  🎯 Nhóm Quét Giá
+                </span>
+                <button
                   *ngIf="g.status === 'candidate'"
                   nz-button
                   nzSize="small"
@@ -234,7 +437,35 @@
                 </button>
                 <span *ngIf="g.status === 'joined'" class="status-badge joined">Đã tham gia</span>
                 <span *ngIf="g.status === 'cooling_down'" class="status-badge cooling">Tạm phạt 7 ngày</span>
-                <span *ngIf="g.status === 'banned'" class="status-badge banned">Bị chặn</span>
+                <span *ngIf="g.status === 'banned'" class="status-badge banned" [title]="g.last_error || 'Nhóm nằm trong Danh Sách Đen'">🚫 DS Đen</span>
+
+                <button
+                  *ngIf="g.status === 'banned'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-unban"
+                  (click)="unbanSingleGroup(g)"
+                  [nzLoading]="unbanningGroupUrl === g.url"
+                  title="Gỡ bỏ khỏi Danh Sách Đen và đưa về nhóm chờ duyệt (Candidate)"
+                >
+                  🔓 Gỡ DS Đen
+                </button>
+
+                <button
+                  *ngIf="g.status === 'joined' || g.status === 'approved' || g.status === 'cooling_down'"
+                  nz-button
+                  nzSize="small"
+                  class="btn-blacklist-direct"
+                  nz-popconfirm
+                  nzPopconfirmTitle="Đưa nhóm này vào Danh Sách Đen và tự động rời nhóm trên Facebook?"
+                  nzOkText="Chặn & Rời"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="banSingleGroup(g, true)"
+                  [nzLoading]="banningGroupUrl === g.url"
+                  title="Chặn vĩnh viễn không bao giờ join lại và tự động out khỏi nhóm Facebook"
+                >
+                  🚫 Blacklist
+                </button>
 
                 <button
                   *ngIf="g.status === 'joined' || g.status === 'approved' || g.status === 'cooling_down'"
@@ -249,6 +480,17 @@
                   [nzLoading]="leavingGroupUrl === g.url"
                 >
                   🚪 Rời
+                </button>
+
+                <button
+                  nz-button
+                  nz-tooltip
+                  nzSize="small"
+                  style="font-size: 11px;"
+                  (click)="toggleTargetType(g)"
+                  [nzTooltipTitle]="g.target_type === 'lazada_hunter' ? 'Chuyển sang nhóm Đăng bài Facebook' : 'Chuyển sang nhóm Quét giá Lazada'"
+                >
+                  {{ g.target_type === 'lazada_hunter' ? '➡ Đăng Bài' : '➡ Quét Laz' }}
                 </button>
 
                 <button
@@ -1358,4 +1600,92 @@
       </div>
     </ng-container>
   </nz-modal>
+
+  <!-- Modal Xem Trước Nhóm Có Nguy Cơ Bị Blacklist / Cần Out -->
+  <nz-modal
+    [(nzVisible)]="blacklistCandidatesModalVisible"
+    nzTitle="🔍 Danh Sách Nhóm Có Dấu Hiệu Vi Phạm (Nguy Cơ Bị Blacklist)"
+    [nzWidth]="920"
+    (nzOnCancel)="closeBlacklistCandidatesModal()"
+    [nzFooter]="null"
+  >
+    <ng-container *nzModalContent>
+      <div class="candidates-modal-body">
+        <div class="candidates-desc-alert">
+          <span class="alert-icon">⚠️</span>
+          <div class="alert-content">
+            <strong>Tiêu chí nhận diện nhóm xấu:</strong> Các nhóm dưới đây bị phát hiện cấm/hạn chế đăng bài, giữ bài chờ duyệt liên tiếp (Pending Approval Hell), hoặc đăng bài thất bại liên tiếp ≥ 3 lần. Bạn có thể bấm <strong>"Thanh Lọc & Rời Nhóm Ngay"</strong> để tự động out khỏi nhóm Facebook và khóa vĩnh viễn trong Danh Sách Đen.
+          </div>
+        </div>
+
+        <div *ngIf="blacklistCandidatesLoading" style="text-align: center; padding: 40px 0;">
+          <nz-spin nzTip="Đang rà soát và kiểm tra lịch sử đăng bài của các nhóm..."></nz-spin>
+        </div>
+
+        <div *ngIf="!blacklistCandidatesLoading && blacklistCandidates.length === 0" style="text-align: center; padding: 36px 0; color: #10b981;">
+          <div style="font-size: 32px; margin-bottom: 8px;">✨</div>
+          <div style="font-size: 15px; font-weight: 600;">Tuyệt vời! Không phát hiện nhóm nào vi phạm tiêu chí</div>
+          <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Tất cả các nhóm trong hệ thống hiện đều an toàn và hoạt động bình thường.</p>
+        </div>
+
+        <div *ngIf="!blacklistCandidatesLoading && blacklistCandidates.length > 0">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 14px; font-weight: 600; color: #f87171;">
+              Phát hiện {{ blacklistCandidates.length }} nhóm vi phạm:
+            </span>
+            <button nz-button class="btn-clean-all-candidates" (click)="scanAndCleanBlacklist(true)" [nzLoading]="cleanBlacklistLoading">
+              🧹 Thanh Lọc & Rời Toàn Bộ (Out FB)
+            </button>
+          </div>
+
+          <div style="max-height: 420px; overflow-y: auto;">
+            <table class="candidates-table">
+              <thead>
+                <tr>
+                  <th>Tên Nhóm / URL</th>
+                  <th style="width: 110px;">Nick Phụ Trách</th>
+                  <th style="width: 100px;">Điểm</th>
+                  <th>Lý Do Vi Phạm</th>
+                  <th style="width: 130px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let cg of blacklistCandidates">
+                  <td>
+                    <a [href]="cg.url" target="_blank" style="color: #60a5fa; font-weight: 500;">
+                      {{ cg.name || 'Group Facebook' }} ↗
+                    </a>
+                    <div style="font-size: 11px; color: var(--text-muted);">{{ cg.url }}</div>
+                  </td>
+                  <td>
+                    <span style="font-size: 12px; font-weight: 600;">{{ cg.account || 'Mặc định' }}</span>
+                  </td>
+                  <td>
+                    <span style="color: #ef4444; font-weight: 700;">{{ cg.priority_score | number:'1.0-0' }}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">/200</span>
+                  </td>
+                  <td>
+                    <span class="reason-badge">{{ cg.reason }}</span>
+                  </td>
+                  <td>
+                    <button 
+                      nz-button 
+                      nzSize="small" 
+                      class="btn-ban-candidate-now"
+                      (click)="banSingleGroup(cg, true)"
+                      [nzLoading]="banningGroupUrl === cg.url"
+                      title="Rời nhóm trên Facebook và đưa vào Danh Sách Đen ngay lập tức"
+                    >
+                      🚫 Rời & Chặn
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </nz-modal>
 </div>
+

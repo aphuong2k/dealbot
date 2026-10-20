@@ -358,39 +358,288 @@ def convert_via_open_api(target_url: str, sub_ids: List[str] = None, app_id: str
     except Exception as e:
         return {"success": False, "message": f"Lỗi gọi Shopee Open API: {str(e)}"}
 
+_AFF_CACHE: Dict[str, str] = {}
+
+def convert_via_portal_gql(target_url: str, sub_ids: List[str] = None) -> Optional[str]:
+    """
+    Chuyển đổi link trực tiếp từ cổng Web Shopee Affiliate (affiliate.shopee.vn) bằng Cookie:
+    - Thử gọi direct GraphQL batchCustomLink (tương tự auto-aff).
+    - Nếu Shopee chặn WAF (HTTP 403 / error 90309999), chuyển sang Playwright portal.
+    """
+    sub_tag = sanitize_sub_id(sub_ids[0] if sub_ids else "bot")
+    target_file = PORTAL_COOKIE_FILE if os.path.exists(PORTAL_COOKIE_FILE) else FALLBACK_COOKIE_FILE
+    if not os.path.exists(target_file):
+        return None
+
+    try:
+        with open(target_file, "r", encoding="utf-8") as f:
+            cookie_list = json.load(f)
+    except Exception:
+        return None
+
+    cookie_parts = []
+    csrf_token = ""
+    for c in cookie_list:
+        if isinstance(c, dict) and "name" in c and "value" in c:
+            name = c["name"]
+            val = c["value"]
+            cookie_parts.append(f"{name}={val}")
+            if name == "csrftoken":
+                csrf_token = val
+
+    if not cookie_parts:
+        return None
+
+    cookie_str = "; ".join(cookie_parts)
+    endpoint = "https://affiliate.shopee.vn/api/v3/gql?q=batchCustomLink"
+    query = """query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller) {
+  batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller) {
+    shortLink
+    longLink
+    failCode
+  }
+}"""
+    adv_params = {}
+    if sub_tag:
+        adv_params["subId1"] = str(sub_tag)[:20]
+
+    variables = {
+        "linkParams": [{
+            "originalLink": target_url,
+            "advancedLinkParams": adv_params
+        }],
+        "sourceCaller": "CUSTOM_LINK_CALLER"
+    }
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Cookie": cookie_str,
+        "Content-Type": "application/json",
+        "Referer": "https://affiliate.shopee.vn/offer/custom_link",
+        "Origin": "https://affiliate.shopee.vn",
+        "Accept": "application/json, text/plain, */*",
+        "x-requested-with": "XMLHttpRequest"
+    }
+    if csrf_token:
+        headers["x-csrftoken"] = csrf_token
+
+    try:
+        resp = requests.post(endpoint, json={"query": query, "variables": variables}, headers=headers, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            items = data.get("data", {}).get("batchCustomLink", [])
+            if items and isinstance(items, list):
+                short_link = items[0].get("shortLink")
+                if short_link and short_link.startswith("http"):
+                    print(f"[ShopeeAff Portal GQL] [OK] Tao shortlink thanh cong: {short_link}")
+                    return short_link
+    except Exception as e:
+        print(f"[ShopeeAff Portal GQL] Loi goi direct: {e}")
+
+    return None
+
+_AFF_CACHE: Dict[str, str] = {}
+
+def convert_via_playwright_portal(target_url: str, sub_ids: List[str] = None) -> Optional[str]:
+    """
+    Tạo link hoa hồng s.shopee.vn chuẩn trực tiếp từ cổng Web Shopee Affiliate (affiliate.shopee.vn/offer/custom_link)
+    bằng Playwright headless và Cookie tài khoản.
+    Kế thừa cơ chế hoạt động chuẩn từ dự án auto-aff, tự động gắn SubID và bypass WAF.
+    """
+    global _AFF_CACHE
+    sub_tag = sanitize_sub_id(sub_ids[0] if sub_ids else "bot")
+    cache_key = f"{target_url}_{sub_tag}"
+    if cache_key in _AFF_CACHE:
+        return _AFF_CACHE[cache_key]
+
+    target_file = PORTAL_COOKIE_FILE if os.path.exists(PORTAL_COOKIE_FILE) else FALLBACK_COOKIE_FILE
+    if not os.path.exists(target_file):
+        return None
+
+    try:
+        with open(target_file, "r", encoding="utf-8") as f:
+            cookie_list = json.load(f)
+    except Exception as e:
+        print(f"[ShopeeAff Portal] Loi doc file cookie: {e}")
+        return None
+
+    pw_cookies = []
+    for c in cookie_list:
+        if isinstance(c, dict) and "name" in c and "value" in c:
+            pw_cookies.append({
+                "name": str(c["name"]).strip(),
+                "value": str(c["value"]).strip(),
+                "domain": str(c.get("domain", ".shopee.vn")).strip(),
+                "path": str(c.get("path", "/")).strip()
+            })
+
+    if not pw_cookies:
+        return None
+
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            )
+            context.add_cookies(pw_cookies)
+            page = context.new_page()
+
+            page.goto("https://affiliate.shopee.vn/offer/custom_link", timeout=35000, wait_until="networkidle")
+
+            # Kiểm tra nếu bị redirect về login
+            if "login" in page.url.lower():
+                print("[ShopeeAff Portal] Cookie da het han hoac bi chuyen huong sang trang dang nhap!")
+                browser.close()
+                return None
+
+            inputs = page.locator("input, textarea").all()
+            if not inputs:
+                browser.close()
+                return None
+
+            # Điền link gốc vào ô đầu tiên
+            inputs[0].fill(target_url)
+            page.wait_for_timeout(300)
+
+            # Điền SubID vào ô thứ hai nếu có (chỉ chữ và số, tối đa 20 ký tự)
+            clean_sub = re.sub(r'[^a-zA-Z0-9]', '', str(sub_tag)) if sub_tag else ""
+            if clean_sub and len(inputs) > 1:
+                try:
+                    inputs[1].fill(clean_sub[:20])
+                    page.wait_for_timeout(300)
+                except Exception:
+                    pass
+
+            btn = page.locator("button:has-text('Get Link'), button:has-text('Lấy link')").first
+            if not btn.is_visible(timeout=3000):
+                btn = page.locator("button.ant-btn-primary").first
+
+            captured_link = ""
+            try:
+                with page.expect_response(
+                    lambda r: "batchCustomLink" in r.url and r.request.method == "POST",
+                    timeout=15000
+                ) as resp_info:
+                    btn.click()
+
+                res = resp_info.value
+                if res.status == 200:
+                    data = res.json()
+                    items = data.get("data", {}).get("batchCustomLink", [])
+                    if items and isinstance(items, list):
+                        captured_link = items[0].get("shortLink") or ""
+            except Exception:
+                pass
+
+            # Dự phòng đọc link hiển thị trên DOM nếu network event bị trễ
+            if not captured_link:
+                page.wait_for_timeout(2000)
+                link_els = page.locator("input[readonly], .ant-input[readonly], a[href*='s.shopee.vn']").all()
+                for el in link_els:
+                    try:
+                        val = el.input_value() if el.evaluate("e => 'value' in e") else el.get_attribute("href")
+                        if val and val.startswith("http") and ("shopee" in val or "s.shopee.vn" in val):
+                            captured_link = val
+                            break
+                    except Exception:
+                        pass
+
+            browser.close()
+
+            if captured_link and captured_link.startswith("http"):
+                _AFF_CACHE[cache_key] = captured_link
+                print(f"[ShopeeAff Portal] [OK] Tao link s.shopee.vn thanh cong: {captured_link}")
+                return captured_link
+
+    except Exception as e:
+        print(f"[ShopeeAff Portal] [ERROR] Loi tao link qua Playwright portal: {e}")
+
+    return None
+
 def convert_to_shopee_aff_link(target_url: str, sub_ids: List[str] = None) -> Dict[str, Any]:
     """
     Hàm tổng hợp chuyển đổi link Shopee sang link Affiliate:
-    1. Ưu tiên cao nhất: Tạo link s.shopee.vn qua Shopee Open API (nếu đã cấu hình App ID & Secret).
-    2. Nếu chưa có Open API: Tự động trích xuất Publisher ID (Affiliate ID) từ Cookie portal và tạo link tracking chuẩn Shopee.
+    1. Kiểm tra cache
+    2. Ưu tiên 1: Tạo link s.shopee.vn qua Shopee Open API (nếu đã cấu hình App ID & Secret).
+    3. Ưu tiên 2: Gọi direct GraphQL batchCustomLink qua cookie.
+    4. Ưu tiên 3: Tạo link s.shopee.vn chuẩn qua Playwright Web Portal Custom Link (cơ chế auto-aff).
+    5. Dự phòng: Gắn trực tiếp mã Publisher ID (Affiliate ID) từ Cookie portal.
     """
     if not target_url or not target_url.strip():
         return {"success": False, "message": "Vui lòng nhập link sản phẩm Shopee.", "short_link": ""}
 
     target_url = target_url.strip()
+    sub_tag = sanitize_sub_id(sub_ids[0] if sub_ids else "bot")
+    cache_key = f"{target_url}_{sub_tag}"
+    if cache_key in _AFF_CACHE:
+        cached = _AFF_CACHE[cache_key]
+        return {
+            "success": True,
+            "short_link": cached,
+            "full_tracking_link": cached,
+            "method": "cache",
+            "message": "Lấy từ bộ nhớ đệm (Cache)"
+        }
 
     # 1. Thử qua Open API nếu đã cấu hình
     api_cfg = get_open_api_config()
     if api_cfg.get("app_id") and api_cfg.get("secret"):
         res = convert_via_open_api(target_url, sub_ids, api_cfg["app_id"], api_cfg["secret"])
         if res.get("success"):
+            _AFF_CACHE[cache_key] = res["short_link"]
             return res
-        # Nếu Open API trả về lỗi nhưng có cấu hình, ta ghi chú lỗi và fallback sang Universal Tracking
-        print(f"[ShopeeAff] Open API trả về lỗi ({res.get('message')}), chuyển sang Universal Tracking...")
+        print(f"[ShopeeAff] Open API trả về lỗi ({res.get('message')}), chuyển sang Portal...")
 
-    # 2. Sử dụng Publisher Affiliate ID từ Cookie Portal
+    # 2. Thử gọi direct Portal GraphQL
+    direct_link = convert_via_portal_gql(target_url, sub_ids)
+    if direct_link:
+        _AFF_CACHE[cache_key] = direct_link
+        profile = fetch_affiliate_profile()
+        aff_id = str(profile.get("affiliate_id") or "") if profile else ""
+        aff_name = str(profile.get("nick_name") or profile.get("name") or "") if profile else ""
+        return {
+            "success": True,
+            "short_link": direct_link,
+            "full_tracking_link": direct_link,
+            "affiliate_id": aff_id,
+            "affiliate_name": aff_name,
+            "method": "portal_direct_gql",
+            "message": "Đã tạo shortlink chuẩn Shopee Affiliate (s.shopee.vn) thành công!"
+        }
+
+    # 3. Thử tạo link s.shopee.vn chuẩn qua Playwright Web Portal Custom Link (auto-aff mechanism)
+    portal_short_link = convert_via_playwright_portal(target_url, sub_ids)
+    if portal_short_link:
+        _AFF_CACHE[cache_key] = portal_short_link
+        profile = fetch_affiliate_profile()
+        aff_id = str(profile.get("affiliate_id") or "") if profile else ""
+        aff_name = str(profile.get("nick_name") or profile.get("name") or "") if profile else ""
+        return {
+            "success": True,
+            "short_link": portal_short_link,
+            "full_tracking_link": portal_short_link,
+            "affiliate_id": aff_id,
+            "affiliate_name": aff_name,
+            "method": "portal_web",
+            "message": "Đã tạo shortlink chuẩn Shopee Affiliate (s.shopee.vn) thành công!"
+        }
+
+    # 3. Sử dụng Publisher Affiliate ID từ Cookie Portal (Dự phòng link dài)
     profile = fetch_affiliate_profile()
     aff_id = str(profile.get("affiliate_id") or "") if profile else ""
     aff_name = str(profile.get("nick_name") or profile.get("name") or "") if profile else ""
 
-    # Nếu không gọi được API live nhưng file cookie có sẵn, thử lấy aff_id đã lưu hoặc mặc định
     if not aff_id:
         info = get_portal_cookie_info()
         aff_id = str(info.get("affiliate_id") or "")
         aff_name = str(info.get("affiliate_name") or "")
 
     if aff_id:
-        # Link chuẩn Shopee gắn trực tiếp mã Publisher ID
         tracking_url = build_universal_tracking_link(target_url, aff_id, sub_ids)
         short_url = tracking_url
         name_display = f" ({aff_name})" if aff_name else ""
@@ -401,15 +650,16 @@ def convert_to_shopee_aff_link(target_url: str, sub_ids: List[str] = None) -> Di
             "affiliate_id": aff_id,
             "affiliate_name": aff_name,
             "method": "universal_tracking",
-            "message": f"Đã gắn mã Publisher ID {aff_id}{name_display} thành công! (Nhập App ID & Secret Key bên trên để tạo link s.shopee.vn)"
+            "message": f"Đã gắn mã Publisher ID {aff_id}{name_display} (Dự phòng link dài)"
         }
 
-    # 3. Chưa có cả Open API lẫn Cookie Portal hợp lệ
+    # 4. Chưa có cả Open API lẫn Cookie Portal hợp lệ
     return {
         "success": False,
         "short_link": "",
         "message": (
             "Chưa xác thực được tài khoản Shopee Affiliate! "
-            "Vui lòng nhập Cookie từ https://affiliate.shopee.vn hoặc điền App ID & Secret Key bên trên."
+            "Vui lòng nạp Cookie từ https://affiliate.shopee.vn hoặc điền App ID & Secret Key."
         )
     }
+

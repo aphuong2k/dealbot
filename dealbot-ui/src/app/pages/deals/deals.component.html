@@ -25,6 +25,10 @@
       <button nz-button class="btn-cleanup-deals" (click)="triggerCleanup()" [nzLoading]="cleanupLoading" nz-tooltip nzTooltipTitle="Quét toàn bộ deal trong kho: tự động loại bỏ & xóa các deal đã hết sale, hết hàng hoặc chết link">
         🧹 Quét & Dọn Deal Hết Sale
       </button>
+
+      <button nz-button nzDanger class="btn-clear-deals" (click)="clearAllDeals()" nz-tooltip nzTooltipTitle="Xóa toàn bộ deal trong kho dữ liệu để dọn sạch hoặc cào lại từ đầu">
+        🗑️ Xóa Tất Cả Deal
+      </button>
     </div>
   </div>
 
@@ -69,7 +73,7 @@
           <th nzWidth="120px">Đánh giá</th>
           <th nzWidth="130px">Deal Score</th>
           <th nzWidth="120px">Trạng thái</th>
-          <th nzWidth="100px">Thao tác</th>
+          <th nzWidth="130px">Thao tác</th>
         </tr>
       </thead>
       <tbody>
@@ -141,9 +145,17 @@
 
           <!-- Actions -->
           <td>
-            <a [href]="d.aff_url" target="_blank" class="link-aff-btn" nz-tooltip nzTooltipTitle="Mở link Shopee Affiliate của bạn (Publisher: 17336000126)">
-              <span class="aff-badge">AFF</span> Mua ↗
-            </a>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <a [href]="d.aff_url" target="_blank" class="link-aff-btn" nz-tooltip nzTooltipTitle="Mở link Shopee Affiliate của bạn (Publisher: 17336000126)">
+                <span class="aff-badge">AFF</span> Mua ↗
+              </a>
+              <button nz-button nzType="text" nzDanger nzSize="small" nz-tooltip nzTooltipTitle="Xóa deal này khỏi kho"
+                      nz-popconfirm nzPopconfirmTitle="Xóa deal này khỏi cơ sở dữ liệu?"
+                      (nzOnConfirm)="deleteSingleDeal(d.id)"
+                      style="padding: 0 4px; font-size: 15px; line-height: 1;">
+                🗑️
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>

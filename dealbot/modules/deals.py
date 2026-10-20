@@ -43,12 +43,14 @@ def score(d):
         s = min(100.0, s + 10.0)
     return round(s, 1)
 
-def ensure_deal_aff_link(deal):
-    """Đảm bảo deal luôn có link affiliate chuẩn Shopee (Publisher ID hoặc s.shopee.vn)."""
+def ensure_deal_aff_link(deal, prefer_short: bool = True):
+    """Đảm bảo deal luôn có link affiliate chuẩn Shopee (ưu tiên shortlink s.shopee.vn)."""
     aff_url = (deal.get("aff_url") or deal.get("url") or "").strip()
     if not aff_url:
         return ""
-    if "s.shopee.vn" in aff_url or "aff_id=" in aff_url:
+    if "s.shopee.vn" in aff_url:
+        return aff_url
+    if not prefer_short and "aff_id=" in aff_url:
         return aff_url
     try:
         from . import shopee_aff_converter
@@ -60,19 +62,24 @@ def ensure_deal_aff_link(deal):
         print(f"[deals] Lỗi convert link affiliate cho deal {deal.get('id')}: {e}")
     return aff_url
 
-def convert_all_deals_to_aff():
-    """Chuyển đổi toàn bộ deal đang có trong database sang link affiliate Shopee."""
-    rows = db.q("SELECT id, url, aff_url FROM deals")
+def convert_all_deals_to_aff(limit: int = 50, only_unconverted: bool = False):
+    """Chuyển đổi các deal trong database sang shortlink s.shopee.vn chuẩn."""
+    rows = db.q("SELECT id, url, aff_url FROM deals ORDER BY score DESC, created_at DESC")
     updated = 0
     from . import shopee_aff_converter
     for r in rows:
         aff = (r["aff_url"] or "").strip()
-        if "aff_id=" not in aff and "s.shopee.vn" not in aff:
-            raw_url = r["url"] or aff
-            res = shopee_aff_converter.convert_to_shopee_aff_link(raw_url, sub_ids=["deallist"])
-            if res.get("success") and res.get("short_link"):
-                db.x("UPDATE deals SET aff_url=? WHERE id=?", (res["short_link"], r["id"]))
-                updated += 1
+        if "s.shopee.vn" in aff:
+            continue
+        if only_unconverted and "aff_id=" in aff:
+            continue
+        raw_url = r["url"] or aff
+        res = shopee_aff_converter.convert_to_shopee_aff_link(raw_url, sub_ids=["deallist"])
+        if res.get("success") and res.get("short_link"):
+            db.x("UPDATE deals SET aff_url=? WHERE id=?", (res["short_link"], r["id"]))
+            updated += 1
+            if updated >= limit:
+                break
     return updated
 
 def refresh(cfg, target_niche=None):

@@ -545,3 +545,330 @@
 .text-danger { color: #ef4444; }
 .text-warning { color: #f59e0b; }
 .text-muted { color: #64748b; }
+
+/* --- LIVE PIPELINE CARD (DASHBOARD) --- */
+.pipeline-live-card {
+  margin-top: 20px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(30, 41, 59, 0.7));
+  border: 1.5px solid rgba(56, 189, 248, 0.5);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.2);
+  backdrop-filter: blur(12px);
+  animation: cardFadeIn 0.3s ease-out;
+}
+
+.pipeline-live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.live-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.live-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8;
+  animation: dotFlash 1s infinite alternate;
+}
+
+.live-tag {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #38bdf8;
+}
+
+.live-timer {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.2);
+  color: #bae6fd;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.step-badge {
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+/* 3-Step Track */
+.pipeline-steps-track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 0 10px;
+}
+
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.step-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.3s;
+}
+
+.pipeline-step.active .step-circle {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+}
+
+.pipeline-step.done .step-circle {
+  background: #10b981;
+  border-color: #34d399;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.step-spinner {
+  display: inline-block;
+  animation: spinSlow 2s linear infinite;
+}
+
+.pipeline-step .step-text .step-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.pipeline-step .step-text .step-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pipeline-step.active .step-text .step-label {
+  color: #38bdf8;
+}
+
+.pipeline-step.done .step-text .step-label {
+  color: #34d399;
+}
+
+.step-line {
+  height: 3px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 14px;
+  border-radius: 2px;
+  transition: all 0.4s;
+}
+
+.step-line.filled {
+  background: linear-gradient(90deg, #10b981, #0284c7);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.pipeline-live-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.live-msg-icon {
+  font-size: 14px;
+}
+
+.live-msg-text {
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+/* --- HUNTER NOTICE BAR (DASHBOARD) --- */
+.hunter-notice-bar {
+  margin-top: 14px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(180, 83, 9, 0.2));
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #fef3c7;
+  animation: cardFadeIn 0.3s ease-out;
+}
+
+.notice-icon {
+  font-size: 16px;
+  animation: bounceSubtle 1.2s infinite ease-in-out;
+}
+
+.notice-text {
+  flex: 1;
+}
+
+.notice-link {
+  color: #fbbf24;
+  font-weight: 700;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.notice-link:hover {
+  color: #fef08a;
+}
+
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- AUTO PIPELINE SCHEDULER PANEL --- */
+.pipeline-auto-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 18px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  flex-wrap: wrap;
+}
+
+.auto-panel-left {
+  flex: 1;
+  min-width: 300px;
+}
+
+.auto-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auto-icon {
+  font-size: 32px;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+}
+
+.auto-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 3px;
+}
+
+.auto-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.auto-panel-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.auto-control-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-control-item .control-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.auto-status-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.auto-status-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.auto-status-badge.status-active {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  color: #34d399;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.auto-status-badge.status-paused {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+.auto-schedule-time {
+  font-size: 11px;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.auto-schedule-time b {
+  color: #e0f2fe;
+}
+
+.mb-20 {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .pipeline-auto-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .auto-panel-right {
+    justify-content: flex-start;
+  }
+  .auto-status-box {
+    align-items: flex-start;
+  }
+}
+

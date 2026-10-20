@@ -21,7 +21,7 @@ if sys.platform == "win32":
 
 from dotenv import load_dotenv
 from apscheduler.schedulers.blocking import BlockingScheduler
-from modules import groups, deals, planner, poster, coupons, images, telegram_channel
+from modules import groups, deals, planner, poster, coupons, images, telegram_channel, lazada_hunter
 from notify import tg
 
 
@@ -95,6 +95,12 @@ def job_telegram_channel():
         if ok:
             tg(f"📢 <b>[Telegram Channel]</b> Đã đăng bản tin mã giảm giá {today_str} lên kênh chính thức.", parse_mode="HTML")
 
+def job_lazada_hunter():
+    """Mỗi 5 phút: Quét toàn bộ sản phẩm trên Lazada, so sánh giá FB và gửi alert Telegram nếu có deal hời."""
+    res = lazada_hunter.run_lazada_hunter_cycle(batch_size=None)
+    if res.get("deals_found", 0) > 0:
+        print(f"[lazada_hunter] Đã phát hiện {res['deals_found']} kèo hời Lazada và gửi Telegram.")
+
 def job_report():
     """22h30: Báo cáo tổng kết ngày qua Telegram."""
     start = db.today_start()
@@ -154,6 +160,8 @@ if __name__ == "__main__":
         job_warmup()
     elif cmd in ("channel", "telegram_channel"):
         job_telegram_channel()
+    elif cmd in ("lazada", "lazada_hunter"):
+        job_lazada_hunter()
     elif cmd == "report":
         job_report()
     else:
@@ -174,9 +182,11 @@ if __name__ == "__main__":
         s.add_job(job_warmup, "cron", hour="10,15", minute=0)
         # 8. Đăng Telegram Channel: 11h15 & 19h15
         s.add_job(job_telegram_channel, "cron", hour="11,19", minute=15)
-        # 9. 22h30: Báo cáo qua Telegram
+        # 9. Mỗi 5 phút: Săn deal Lazada so sánh giá FB (LazMall / Tmall)
+        s.add_job(job_lazada_hunter, "interval", minutes=5)
+        # 10. 22h30: Báo cáo qua Telegram
         s.add_job(job_report, "cron", hour=22, minute=30)
 
-        tg("🚀 <b>dealbot</b> đã khởi động với đầy đủ vòng chạy hàng ngày!", parse_mode="HTML")
+        tg("🚀 <b>dealbot</b> đã khởi động với đầy đủ vòng chạy hàng ngày kèm Lazada Hunter 5p!", parse_mode="HTML")
         print("dealbot scheduler started. Press Ctrl+C to exit.")
         s.start()

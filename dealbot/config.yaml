@@ -1,4 +1,4 @@
-dry_run: true
+dry_run: false
 niches:
 - Thời Trang Nam
 - Thời Trang Nữ
@@ -33,7 +33,7 @@ posting:
   - 25
   - 70
   group_cooldown_hours: 48
-  link_in_comment: true
+  link_in_comment: false
   warmup_days: 7
 accounts:
 - name: nick_a
@@ -60,3 +60,37 @@ learning:
 shopee_affiliate:
   app_id: ''
   secret: ''
+lazada_hunter:
+  enabled: true
+  interval_minutes: 5
+  filter_mall_only: false
+  min_discount_pct: 5.0
+  selected_groups:
+  - https://www.facebook.com/groups/475147223546856
+  - https://www.facebook.com/groups/chobanphimco
+  - https://www.facebook.com/groups/181768129374914
+  - https://www.facebook.com/groups/hoikeycapvietnam
+  - https://www.facebook.com/groups/2027534878034246
+  - https://www.facebook.com/groups/186181648626920
+  max_search_results: 40
+  cookie_file: cookies/lazada.json
+lazada_general_scanner:
+  enabled: true
+  interval_minutes: 5
+  min_drop_pct: 80.0
+  tmall_min_drop_pct: 80.0
+  tmall_max_drop_pct: 95.0
+  min_price_floor: 35000.0
+  batch_keywords_per_cycle: 6
+  filter_mall_only: true
+pipeline_auto:
+  enabled: true
+  interval_hours: 2
+  auto_post_due: true
+group_blacklist:
+  auto_clean_enabled: true
+  clean_interval_hours: 6
+  auto_leave_fb: true
+  max_leaves_per_run: 5
+  consecutive_fails_threshold: 3
+  pending_approval_threshold: 2

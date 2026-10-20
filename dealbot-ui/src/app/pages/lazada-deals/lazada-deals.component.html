@@ -1,0 +1,1665 @@
+<div class="lazada-page">
+  <!-- Top Header & Live Actions -->
+  <div class="page-header card-glass">
+    <div class="header-intro">
+      <div class="header-title-box">
+        <span class="header-icon">⚡</span>
+        <div>
+          <h2 class="section-title">Săn Deal LazMall (Theo Thị Trường FB)</h2>
+          <p class="section-subtitle">
+            Cào bài viết từ 5 nhóm Facebook, tổng hợp giá trung bình thị trường, định kỳ 5 phút tìm kiếm trên Lazada và bắn deal qua Telegram khi phân loại LazMall có giá hời.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Auto Hunter Toggle -->
+      <div class="auto-hunter-pill">
+        <span class="pill-label">Tự động săn 5p:</span>
+        <nz-switch
+          [ngModel]="config.enabled"
+          (ngModelChange)="toggleAutoHunter($event)"
+          nzCheckedChildren="BẬT"
+          nzUnCheckedChildren="TẮT"
+        ></nz-switch>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <button
+        nz-button
+        nzType="primary"
+        class="btn-hunter-action"
+        [nzLoading]="hunterStatus.is_running || runningHunterNow"
+        [disabled]="hunterStatus.is_running"
+        (click)="runHunterNow()"
+      >
+        <span *ngIf="!hunterStatus.is_running">⚡ Săn Deal Ngay</span>
+        <span *ngIf="hunterStatus.is_running">⏳ Đang Săn Deal ({{ hunterStatus.elapsed_seconds }}s)...</span>
+      </button>
+
+      <button
+        nz-button
+        class="btn-radar-action"
+        [nzLoading]="runningGeneralScanNow || generalStatus.is_running"
+        (click)="runGeneralScanNow()"
+      >
+        <span *ngIf="!generalStatus.is_running">🔥 Quét Sập Sàn Từ Khóa</span>
+        <span *ngIf="generalStatus.is_running">⏳ Đang Quét ({{ generalStatus.elapsed_seconds }}s)...</span>
+      </button>
+
+      <button
+        nz-button
+        [class]="tmallStatus.continuous_mode ? 'btn-tmall-stop-action' : 'btn-tmall-action'"
+        (click)="toggleContinuousScan()"
+        nz-tooltip
+        nzTooltipTitle="Tự động quét lần lượt qua từng nhóm ngành, hết một vòng tự động quay lại vòng mới liên tục ngày đêm"
+      >
+        <span *ngIf="!tmallStatus.continuous_mode">🔁 Bật Quét Tuần Tự Liên Tục</span>
+        <span *ngIf="tmallStatus.continuous_mode">⏹️ Dừng Quét Liên Tục (Vòng #{{ tmallStatus.current_loop || 1 }})</span>
+      </button>
+
+      <button nz-button class="btn-fb-action" [nzLoading]="scanningFb" (click)="triggerScanFbNow()">
+        🔍 Quét 5 Nhóm FB
+      </button>
+    </div>
+  </div>
+
+  <!-- Live Tmall Brand Running Card (Khi luồng quét shop Brand Tmall đang chạy) -->
+  <div *ngIf="tmallStatus.is_running" class="hunter-live-card tmall-live-card">
+    <div class="hunter-live-header">
+      <div class="hunter-title-box">
+        <span class="live-pulse-purple"></span>
+        <span class="hunter-live-title" style="color: #c084fc;">RADAR BRAND TMALL ĐANG QUÉT SHOP & SẢN PHẨM</span>
+        <span class="hunter-trigger-tag" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4);">
+          {{ tmallStatus.continuous_mode ? '🔁 Quét Tuần Tự Liên Tục (Vòng #' + (tmallStatus.current_loop || 1) + ')' : 'Quét Lần Lượt Từng Shop' }}
+        </span>
+        <span class="hunter-timer">⏱ {{ tmallStatus.elapsed_seconds }}s</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button
+          *ngIf="tmallStatus.continuous_mode"
+          nz-button
+          nzSize="small"
+          nzDanger
+          (click)="stopContinuousScan()"
+        >
+          ⏹️ Dừng liên tục
+        </button>
+        <div class="hunter-deals-badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4);">
+          🎁 Đã cào: <b>{{ tmallStatus.items_scanned }}</b> SP | 🔥 Bắt được: <b>{{ tmallStatus.deals_found }}</b> kèo
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Track -->
+    <div class="hunter-progress-track">
+      <div class="hunter-progress-bar" style="background: linear-gradient(90deg, #a855f7, #ec4899, #38bdf8);" [style.width.%]="tmallProgressPct"></div>
+    </div>
+
+    <!-- Live Item Meta -->
+    <div class="hunter-live-meta">
+      <div class="hunter-current-item">
+        <span class="spin-disc-purple">🏪</span>
+        <span class="current-item-name">
+          <b>[Shop {{ tmallStatus.current_shop_index }}/{{ tmallStatus.total_shops }}]:</b>
+          <span class="shop-name-highlight">{{ tmallStatus.current_shop_name || 'Đang chọn shop...' }}</span>
+          <span class="cat-pill-badge" *ngIf="tmallStatus.current_category_name">🏷️ {{ tmallStatus.current_category_name }}</span>
+        </span>
+      </div>
+      <div class="hunter-pct-label">{{ tmallProgressPct }}%</div>
+    </div>
+  </div>
+
+  <!-- Live Radar Sập Sàn Running Card (Khi luồng quét sập sàn Tmall đang chạy) -->
+  <div *ngIf="generalStatus.is_running" class="hunter-live-card general-live-card">
+    <div class="hunter-live-header">
+      <div class="hunter-title-box">
+        <span class="live-pulse-pink"></span>
+        <span class="hunter-live-title" style="color: #f472b6;">RADAR SẬP SÀN TOÀN SÀN ĐANG QUÉT</span>
+        <span class="hunter-trigger-tag" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; border-color: rgba(236, 72, 153, 0.4);">
+          Đa ngành hàng LazMall / Tmall
+        </span>
+        <span class="hunter-timer">⏱ {{ generalStatus.elapsed_seconds }}s</span>
+      </div>
+      <div class="hunter-deals-badge" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; border-color: rgba(236, 72, 153, 0.4);">
+        🔥 Đã phát hiện: <b>{{ generalStatus.deals_found }}</b> kèo sập sàn
+      </div>
+    </div>
+
+    <!-- Progress Track -->
+    <div class="hunter-progress-track">
+      <div class="hunter-progress-bar" style="background: linear-gradient(90deg, #ec4899, #a855f7);" [style.width.%]="generalProgressPct"></div>
+    </div>
+
+    <!-- Live Item Meta -->
+    <div class="hunter-live-meta">
+      <div class="hunter-current-item">
+        <span class="spin-disc-pink">🔥</span>
+        <span class="current-item-name">
+          <b>[{{ generalStatus.current_index }}/{{ generalStatus.total_keywords }}]:</b> {{ generalStatus.current_category }} - '{{ generalStatus.current_keyword }}'
+        </span>
+      </div>
+      <div class="hunter-pct-label">{{ generalProgressPct }}%</div>
+    </div>
+  </div>
+
+  <!-- Live Hunter Running Card (Hiển thị nổi bật khi luồng quét deal Lazada đang chạy) -->
+  <div *ngIf="hunterStatus.is_running" class="hunter-live-card">
+    <div class="hunter-live-header">
+      <div class="hunter-title-box">
+        <span class="live-pulse-amber"></span>
+        <span class="hunter-live-title">TIẾN TRÌNH SĂN DEAL LAZADA ĐANG CHẠY</span>
+        <span class="hunter-trigger-tag">
+          {{ hunterStatus.trigger_type === 'manual' ? 'Kích hoạt: Thủ công' : 'Kích hoạt: Định kỳ 5 phút' }}
+        </span>
+        <span class="hunter-timer">⏱ {{ hunterStatus.elapsed_seconds }}s</span>
+      </div>
+      <div class="hunter-deals-badge">
+        🔥 Đã phát hiện: <b>{{ hunterStatus.deals_found }}</b> kèo hời
+      </div>
+    </div>
+
+    <!-- Progress Track -->
+    <div class="hunter-progress-track">
+      <div class="hunter-progress-bar" [style.width.%]="hunterProgressPct"></div>
+    </div>
+
+    <!-- Live Item Meta -->
+    <div class="hunter-live-meta">
+      <div class="hunter-current-item">
+        <span class="spin-disc-amber">⚡</span>
+        <span class="current-item-name">
+          <b>[{{ hunterStatus.current_index }}/{{ hunterStatus.total_products }} SP]:</b> {{ hunterStatus.current_product_name || hunterStatus.message }}
+        </span>
+      </div>
+      <div class="hunter-pct-label">{{ hunterProgressPct }}%</div>
+    </div>
+  </div>
+
+  <!-- Metric Overview Cards -->
+  <div class="metrics-grid">
+    <!-- Metric 1: Cookie Lazada -->
+    <div class="metric-card card-glass">
+      <div class="metric-icon-box orange">🍪</div>
+      <div class="metric-body">
+        <div class="metric-label">Cookie Lazada</div>
+        <div class="metric-value">
+          <span *ngIf="cookieInfo.exists" class="badge-status online">
+            🟢 {{ cookieInfo.user_name || 'Đã nạp (' + cookieInfo.count + ' ck)' }}
+          </span>
+          <span *ngIf="!cookieInfo.exists" class="badge-status offline">
+            🔴 Chưa nạp
+          </span>
+        </div>
+        <div class="metric-meta">
+          <span>{{ cookieInfo.updated_at ? 'Cập nhật: ' + formatTime(cookieInfo.updated_at) : 'Cần nạp cookie để cào giá' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 2: 5 FB Groups -->
+    <div class="metric-card card-glass">
+      <div class="metric-icon-box blue">👥</div>
+      <div class="metric-body">
+        <div class="metric-label">Nhóm FB Đang Quét</div>
+        <div class="metric-value highlight-blue">
+          {{ selectedGroupUrls.length }} / 5 <span class="unit">nhóm</span>
+        </div>
+        <div class="metric-meta">
+          <span>Nick quét: <b>{{ selectedAccount }}</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 3: Tracked Products -->
+    <div class="metric-card card-glass">
+      <div class="metric-icon-box purple">📊</div>
+      <div class="metric-body">
+        <div class="metric-label">Sản Phẩm Theo Dõi</div>
+        <div class="metric-value highlight-purple">
+          {{ activeProductsCount }} <span class="unit">/ {{ products.length }} SP</span>
+        </div>
+        <div class="metric-meta">
+          <span>Đang kích hoạt săn deal định kỳ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 4: Deals Found -->
+    <div class="metric-card card-glass">
+      <div class="metric-icon-box green">🔥</div>
+      <div class="metric-body">
+        <div class="metric-label">Deal LazMall Đã Săn</div>
+        <div class="metric-value highlight-green">
+          {{ deals.length }} <span class="unit">deal</span>
+        </div>
+        <div class="metric-meta">
+          <span>Đã gửi thông báo Telegram</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Tabs Content -->
+  <div class="main-tabs-container card-glass">
+    <nz-tabset [(nzSelectedIndex)]="activeTabIndex" nzType="card" class="hunter-tabset">
+      
+      <!-- TAB 1: KHO DEAL SĂN ĐƯỢC -->
+      <nz-tab [nzTitle]="tabTitleDeals">
+        <ng-template #tabTitleDeals>
+          <span>🔥 Kèo Hời LazMall ({{ deals.length }})</span>
+        </ng-template>
+
+        <div class="tab-pane-content">
+          <div class="tab-header-row">
+            <div>
+              <h3 class="pane-title">Danh Sách Deal LazMall Thấp Hơn Thị Trường FB ({{ deals.length }})</h3>
+              <p class="pane-desc">Các sản phẩm phân loại LazMall có giá bán thấp hơn giá trung bình trên các nhóm Facebook và đã được gửi qua Telegram.</p>
+            </div>
+            <div class="tab-actions-group">
+              <button nz-button (click)="loadDeals()" [nzLoading]="dealsLoading">
+                🔄 Làm mới
+              </button>
+              <button nz-button nzDanger (click)="clearAllDeals()" *ngIf="deals.length > 0">
+                🗑️ Xóa Sạch Toàn Bộ Deal
+              </button>
+            </div>
+          </div>
+
+          <nz-table
+            #dealsTable
+            [nzData]="deals"
+            [nzLoading]="dealsLoading"
+            [nzPageSize]="10"
+            nzSize="middle"
+            class="custom-table"
+          >
+            <thead>
+              <tr>
+                <th nzWidth="60px">Ảnh</th>
+                <th>Sản Phẩm & Phân Loại</th>
+                <th>Gian Hàng</th>
+                <th>Giá Lazada</th>
+                <th>Giá TB Facebook</th>
+                <th>Chênh Lệch</th>
+                <th>Tiết Kiệm</th>
+                <th>Thời Gian</th>
+                <th nzWidth="140px">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of dealsTable.data">
+                <td>
+                  <img
+                    *ngIf="d.image_url"
+                    [src]="d.image_url"
+                    class="product-thumb"
+                    alt="product"
+                    onerror="this.src='https://placehold.co/48x48/1e293b/94a3b8?text=SP'"
+                  />
+                  <div *ngIf="!d.image_url" class="product-thumb-placeholder">🛒</div>
+                </td>
+                <td>
+                  <div class="product-title-text">{{ d.product_name }}</div>
+                  <div class="variation-badge">
+                    🏷️ Phân loại: <b>{{ d.variation_name }}</b>
+                  </div>
+                </td>
+                <td>
+                  <div class="seller-box">
+                    <span>{{ d.seller_name || 'Lazada Store' }}</span>
+                    <span *ngIf="d.is_mall" class="lazmall-badge">🎖️ LazMall</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="price-lazada">{{ d.laz_price | number:'1.0-0' }} đ</span>
+                </td>
+                <td>
+                  <span class="price-market">{{ d.market_avg_price | number:'1.0-0' }} đ</span>
+                </td>
+                <td>
+                  <span class="discount-diff-tag">
+                    -{{ d.diff_pct }}%
+                  </span>
+                </td>
+                <td>
+                  <span class="saved-amount">+{{ (d.market_avg_price - d.laz_price) | number:'1.0-0' }} đ</span>
+                </td>
+                <td>
+                  <div class="meta-time">{{ formatTime(d.sent_to_tg_at || d.created_at) }}</div>
+                  <nz-tag nzColor="blue">📢 Telegram Sent</nz-tag>
+                </td>
+                <td>
+                  <div class="table-actions-cell" style="display: flex; gap: 8px; align-items: center;">
+                    <a [href]="d.product_url" target="_blank" rel="noopener noreferrer" class="btn-buy-link">
+                      Xem SP ↗
+                    </a>
+                    <button nz-button nzType="text" nzDanger (click)="deleteDeal(d.id)" title="Xóa deal này">
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </nz-table>
+        </div>
+      </nz-tab>
+
+      <!-- TAB 2: RADAR SẬP SÀN TMALL (SINGLE-SKU GLITCH / DEEP DROP) -->
+      <nz-tab [nzTitle]="tabTitleDeepDrops">
+        <ng-template #tabTitleDeepDrops>
+          <span>🔥 Radar Sập Sàn Tmall ({{ deepDrops.length }})</span>
+        </ng-template>
+
+        <div class="tab-pane-content">
+          <div class="tab-header-row">
+            <div>
+              <h3 class="pane-title">Radar Phát Hiện Sập Sàn Phân Loại (Single-SKU Deep Drop)</h3>
+              <p class="pane-desc">
+                Các sản phẩm trên LazMall / Tmall có duy nhất 1 phân loại giảm thẳng 50% - 85% trực tiếp vào giá bán (không cần mã giảm giá / voucher).
+              </p>
+            </div>
+            <div class="tab-actions-group">
+              <button
+                nz-button
+                class="btn-radar-action"
+                (click)="runGeneralScanNow()"
+                [nzLoading]="runningGeneralScanNow || generalStatus.is_running"
+              >
+                🔥 Quét Sập Sàn Ngay
+              </button>
+              <button nz-button (click)="loadDeepDrops()" [nzLoading]="deepDropsLoading">
+                🔄 Làm mới
+              </button>
+              <button nz-button nzDanger (click)="clearDeepDropsList()" *ngIf="deepDrops.length > 0">
+                🗑️ Dọn dẹp
+              </button>
+            </div>
+          </div>
+
+          <!-- Category Filter Bar (Dynamic from Radar Categories) -->
+          <div class="category-filter-bar">
+            <span class="filter-label">Lọc theo ngành:</span>
+            <button
+              class="cat-chip"
+              [class.active]="selectedCategory === 'all'"
+              (click)="filterCategory('all')"
+            >
+              Tất Cả ({{ deepDrops.length }})
+            </button>
+            <button
+              *ngFor="let cat of radarCategories"
+              class="cat-chip"
+              [class.active]="selectedCategory === cat.name"
+              (click)="filterCategory(cat.name)"
+            >
+              {{ cat.icon || '🏷️' }} {{ cat.name }} ({{ getCategoryDealCount(cat.name) }})
+            </button>
+          </div>
+
+          <!-- Deep Drops Table -->
+          <nz-table
+            #deepDropsTable
+            [nzData]="deepDrops"
+            [nzLoading]="deepDropsLoading"
+            [nzPageSize]="10"
+            nzSize="middle"
+            class="custom-table"
+          >
+            <thead>
+              <tr>
+                <th nzWidth="60px">Ảnh</th>
+                <th>Sản Phẩm</th>
+                <th>Phân Loại Giảm Sâu</th>
+                <th>Ngành Hàng</th>
+                <th>Giá Sập Sàn</th>
+                <th>Giá Gốc / Khác</th>
+                <th>Mức Giảm</th>
+                <th>Gian Hàng</th>
+                <th nzWidth="140px">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of deepDropsTable.data">
+                <td>
+                  <img
+                    *ngIf="d.image_url"
+                    [src]="d.image_url"
+                    class="product-thumb"
+                    alt="product"
+                    onerror="this.src='https://placehold.co/48x48/1e293b/94a3b8?text=SP'"
+                  />
+                  <div *ngIf="!d.image_url" class="product-thumb-placeholder">🛒</div>
+                </td>
+                <td>
+                  <div class="product-title-text">{{ d.product_title }}</div>
+                  <div class="item-id-meta">ID: {{ d.item_id }}</div>
+                </td>
+                <td>
+                  <div class="variation-badge glitch-badge">
+                    ⚡ {{ d.variation_name }}
+                  </div>
+                </td>
+                <td>
+                  <span class="category-tag">{{ d.category }}</span>
+                </td>
+                <td>
+                  <span class="price-val drop-price-highlight">{{ d.drop_price | number:'1.0-0' }} ₫</span>
+                  <div class="direct-cut-badge">Giảm trực tiếp</div>
+                </td>
+                <td>
+                  <span class="price-orig-del">{{ d.sibling_avg_price | number:'1.0-0' }} ₫</span>
+                </td>
+                <td>
+                  <span class="discount-diff-tag deep-drop-tag">-{{ d.drop_pct | number:'1.1-1' }}%</span>
+                </td>
+                <td>
+                  <span class="seller-name-text">{{ d.seller_name }}</span>
+                  <div class="mall-pill" *ngIf="d.is_mall">🎖️ LazMall</div>
+                </td>
+                <td>
+                  <div class="table-actions-cell" style="display: flex; gap: 8px; align-items: center;">
+                    <a
+                      [href]="d.product_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="btn-buy-link"
+                    >
+                      Mua Ngay ↗
+                    </a>
+                    <button nz-button nzType="text" nzDanger (click)="deleteSingleDeepDrop(d.id)" title="Xóa kèo này">
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </nz-table>
+        </div>
+      </nz-tab>
+
+      <!-- TAB TMALL BRAND: DANH MỤC BRAND TMALL (6 NHÓM TRỌNG ĐIỂM) -->
+      <nz-tab [nzTitle]="tabTitleTmallBrands">
+        <ng-template #tabTitleTmallBrands>
+          <span>🏪 Danh Mục Brand Tmall ({{ tmallCategories.length }} Ngành)</span>
+        </ng-template>
+
+        <div class="tab-pane-content tmall-pane-content">
+          <!-- Pane Top Header -->
+          <div class="tab-header-row">
+            <div>
+              <div class="badge-tmall-official">🎖️ TMALL OFFICIAL BRAND DIRECTORY</div>
+              <h3 class="pane-title mt-4">Quét Sâu Theo Nhóm Ngành Brand Tmall & Toàn Bộ Sản Phẩm Shop</h3>
+              <p class="pane-desc">
+                Hệ thống cào trực tiếp từ <b>Danh Mục Brand Tmall</b> của Lazada. Tập trung cào tuần tự các shop và toàn bộ sản phẩm trong <b>6 nhóm ngành trọng điểm</b>: <i>Điện Gia Dụng, Điện Tử & Phụ Kiện, Bách Hóa, Đời Sống, Thời Trang Thể Thao, Thời Trang Nam</i>.
+              </p>
+            </div>
+            <div class="tab-actions-group">
+              <button
+                nz-button
+                nzType="primary"
+                [class]="tmallStatus.continuous_mode ? 'btn-tmall-stop-action' : 'btn-tmall-priority-action'"
+                (click)="toggleContinuousScan()"
+              >
+                <span *ngIf="!tmallStatus.continuous_mode">🔁 Chạy Quét Tuần Tự Liên Tục Ngày Đêm</span>
+                <span *ngIf="tmallStatus.continuous_mode">⏹️ Dừng Quét Liên Tục (Đang Vòng #{{ tmallStatus.current_loop || 1 }})</span>
+              </button>
+              <button
+                nz-button
+                class="btn-tmall-single-cat"
+                [nzLoading]="runningTmallScanNow || tmallStatus.is_running"
+                (click)="triggerTmallBrandScanNow()"
+                *ngIf="selectedTmallCategory && !tmallStatus.continuous_mode"
+              >
+                🔥 Quét 1 Lần Nhóm "{{ selectedTmallCategory.name }}"
+              </button>
+              <button
+                nz-button
+                class="btn-sync-cats"
+                [nzLoading]="syncingTmallBrands"
+                (click)="syncTmallBrandsNow()"
+                nz-tooltip
+                nzTooltipTitle="Cào live cấu trúc Brand Directory & danh sách shop mới nhất từ Lazada"
+              >
+                🔄 Đồng Bộ Tmall Live
+              </button>
+              <button nz-button (click)="loadTmallCategories()" [nzLoading]="tmallCategoriesLoading">
+                🔄 Tải lại
+              </button>
+            </div>
+          </div>
+
+          <!-- Threshold Selector Bar: Lọc giảm sâu 80% - 85% để loại trừ giá ảo -->
+          <div class="tmall-threshold-bar card-glass mb-16">
+            <div class="threshold-label-box">
+              <span class="threshold-icon">📉</span>
+              <div>
+                <span class="threshold-title">Ngưỡng Lọc Sập Sàn: <b class="highlight-rose">-{{ tmallMinDropPct }}% Trở Lên</b></span>
+                <span class="threshold-hint">• Chỉ lấy các kèo xả kho thật giảm từ <b>80% - 85%+</b>, lọc sạch các phân loại giá ảo niêm yết</span>
+              </div>
+            </div>
+            <div class="threshold-pills">
+              <button
+                type="button"
+                class="pct-pill"
+                [class.active]="tmallMinDropPct === 80"
+                (click)="tmallMinDropPct = 80"
+              >
+                🔥 Giảm $\ge$ 80% (Khuyên dùng)
+              </button>
+              <button
+                type="button"
+                class="pct-pill"
+                [class.active]="tmallMinDropPct === 82"
+                (click)="tmallMinDropPct = 82"
+              >
+                ⚡ Giảm $\ge$ 82%
+              </button>
+              <button
+                type="button"
+                class="pct-pill"
+                [class.active]="tmallMinDropPct === 85"
+                (click)="tmallMinDropPct = 85"
+              >
+                🚨 Giảm $\ge$ 85% (Siêu Sập Sàn)
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 1: 6 NHÓM NGÀNH TRỌNG ĐIỂM (VIP CARDS) -->
+          <div class="tmall-section-title">
+            <span class="section-badge-icon">🎯</span>
+            <span class="section-heading">6 Nhóm Ngành Trọng Điểm Cần Tập Trung Quét (691 Gian Hàng)</span>
+            <span class="section-hint">• Bật/tắt để radar tự động xoay vòng cào sản phẩm trong các shop</span>
+          </div>
+
+          <div class="priority-categories-grid">
+            <div
+              *ngFor="let cat of priorityCategories"
+              class="priority-cat-card"
+              [class.active-selected]="selectedTmallCategoryId === cat.id"
+              [class.is-enabled]="cat.is_active === 1"
+              (click)="selectTmallCategory(cat.id)"
+            >
+              <div class="cat-card-header">
+                <div class="cat-icon-box">{{ cat.icon || '🏪' }}</div>
+                <div class="cat-switch" (click)="$event.stopPropagation()">
+                  <nz-switch
+                    [ngModel]="cat.is_active === 1"
+                    (ngModelChange)="toggleTmallCategoryActive(cat)"
+                    nzCheckedChildren="BẬT"
+                    nzUnCheckedChildren="TẮT"
+                  ></nz-switch>
+                </div>
+              </div>
+
+              <div class="cat-card-body">
+                <div class="cat-card-name">{{ cat.name }}</div>
+                <div class="cat-card-meta">
+                  <span class="cat-shop-count">🏬 <b>{{ cat.shops_count }}</b> gian hàng</span>
+                  <span class="cat-deal-count" *ngIf="cat.deals_count > 0">🔥 {{ cat.deals_count }} deal</span>
+                </div>
+              </div>
+
+              <div class="cat-card-footer">
+                <span class="cat-status-pill" [class.on]="cat.is_active === 1">
+                  {{ cat.is_active === 1 ? '🟢 Đang Quét' : '⚪ Tạm Dừng' }}
+                </span>
+                <span class="cat-view-btn" *ngIf="selectedTmallCategoryId === cat.id">
+                  Đang Xem Shop ➔
+                </span>
+                <span class="cat-view-btn-idle" *ngIf="selectedTmallCategoryId !== cat.id">
+                  Xem Shop ➔
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: CÁC NHÓM NGÀNH KHÁC TRÊN TMALL (9 NHÓM) -->
+          <div class="other-categories-bar mt-20">
+            <div class="other-label">🌐 9 Nhóm Ngành Tmall Khác (Toàn Sàn):</div>
+            <div class="other-chips-wrap">
+              <div
+                *ngFor="let cat of otherCategories"
+                class="other-cat-chip"
+                [class.selected]="selectedTmallCategoryId === cat.id"
+                [class.active]="cat.is_active === 1"
+                (click)="selectTmallCategory(cat.id)"
+              >
+                <span>{{ cat.icon || '🛍️' }} {{ cat.name }} ({{ cat.shops_count }} shop)</span>
+                <span class="other-cat-switch" (click)="$event.stopPropagation()">
+                  <nz-switch
+                    nzSize="small"
+                    [ngModel]="cat.is_active === 1"
+                    (ngModelChange)="toggleTmallCategoryActive(cat)"
+                  ></nz-switch>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: DANH SÁCH GIAN HÀNG & CÀO ALL PRODUCTS -->
+          <div class="tmall-shops-section card-glass mt-24">
+            <div class="shops-section-header">
+              <div class="shops-header-title">
+                <span class="cat-big-icon">{{ selectedTmallCategory?.icon || '🏬' }}</span>
+                <div>
+                  <h4 class="shops-heading">
+                    Danh Sách Gian Hàng Tmall: <b>{{ selectedTmallCategory?.name || 'Tất Cả' }}</b>
+                  </h4>
+                  <p class="shops-sub">
+                    Tổng cộng <b>{{ tmallShops.length }} gian hàng chính hãng</b>. Bấm vào nút "Mở Shop trên Lazada" để xem trang All-Products hoặc chạy quét deal sản phẩm.
+                  </p>
+                </div>
+              </div>
+
+              <div class="shops-header-actions">
+                <nz-input-group [nzPrefix]="prefixShopSearch" class="shop-search-input">
+                  <input
+                    type="text"
+                    nz-input
+                    placeholder="Tìm theo tên shop, thương hiệu, slug..."
+                    [(ngModel)]="tmallShopSearch"
+                  />
+                </nz-input-group>
+                <ng-template #prefixShopSearch>🔍</ng-template>
+
+                <button
+                  nz-button
+                  nzType="primary"
+                  class="btn-scan-cat-shops"
+                  [nzLoading]="runningTmallScanNow || tmallStatus.is_running"
+                  (click)="triggerTmallBrandScanNow()"
+                  *ngIf="selectedTmallCategory"
+                >
+                  ⚡ Quét {{ filteredTmallShops.length }} Shop Thuộc Nhóm Này
+                </button>
+              </div>
+            </div>
+
+            <!-- Shops Grid Cards -->
+            <div class="shops-grid" *ngIf="filteredTmallShops.length > 0 && !tmallShopsLoading">
+              <div *ngFor="let shop of filteredTmallShops" class="shop-card">
+                <div class="shop-card-top">
+                  <div class="shop-logo-box">
+                    <img
+                      *ngIf="shop.logo_url"
+                      [src]="shop.logo_url"
+                      class="shop-logo-img"
+                      alt="logo"
+                      onerror="this.style.display='none'"
+                    />
+                    <div class="shop-logo-fallback" *ngIf="!shop.logo_url">
+                      🏬
+                    </div>
+                  </div>
+                  <div class="shop-main-info">
+                    <div class="shop-name-title" [title]="shop.shop_name">
+                      {{ shop.shop_name }}
+                    </div>
+                    <div class="shop-badge-official">
+                      <span>🎖️ Tmall Flagship</span>
+                      <span class="shop-cat-pill">{{ shop.category_name }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="shop-card-mid">
+                  <div class="shop-slug-meta">
+                    <span class="meta-slug-label">Slug:</span>
+                    <code class="shop-slug-code">{{ shop.shop_slug }}</code>
+                  </div>
+                  <div class="shop-scanned-meta" *ngIf="shop.total_products_scanned > 0">
+                    <span>📦 Đã cào: <b>{{ shop.total_products_scanned }}</b> SP</span>
+                    <span *ngIf="shop.last_scanned_at">({{ formatTime(shop.last_scanned_at) }})</span>
+                  </div>
+                </div>
+
+                <div class="shop-card-actions">
+                  <a
+                    [href]="shop.shop_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn-shop-open"
+                    nz-tooltip
+                    nzTooltipTitle="Mở trang All-Products của gian hàng trên Lazada"
+                  >
+                    Mở Shop (All SP) ↗
+                  </a>
+                  <button
+                    nz-button
+                    nzSize="small"
+                    class="btn-shop-quick-scan"
+                    (click)="openTestSearch(shop.shop_name, true)"
+                    nz-tooltip
+                    nzTooltipTitle="Tìm nhanh các sản phẩm của shop này trên Lazada"
+                  >
+                    🔍 Xem SP
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty or Loading State -->
+            <div *ngIf="tmallShopsLoading" class="shops-loading-box">
+              <nz-spin nzTip="Đang tải danh sách gian hàng Tmall..."></nz-spin>
+            </div>
+
+            <div *ngIf="filteredTmallShops.length === 0 && !tmallShopsLoading" class="shops-empty-box">
+              <div class="empty-icon">🏬</div>
+              <p>Không tìm thấy gian hàng nào phù hợp với từ khóa "<b>{{ tmallShopSearch }}</b>".</p>
+            </div>
+          </div>
+        </div>
+      </nz-tab>
+
+      <!-- TAB 4: SẢN PHẨM & GIÁ THỊ TRƯỜNG FB -->
+      <nz-tab [nzTitle]="tabTitleProducts">
+        <ng-template #tabTitleProducts>
+          <span>📋 Sản Phẩm & Giá FB ({{ products.length }})</span>
+        </ng-template>
+
+        <div class="tab-pane-content">
+          <div class="tab-header-row">
+            <div>
+              <h3 class="pane-title">Kho Sản Phẩm & Giá Trung Bình Thị Trường FB</h3>
+              <p class="pane-desc">Danh sách sản phẩm được bóc tách từ các bài đăng trên 5 nhóm Facebook. Định kỳ 5 phút hệ thống sẽ lấy các sản phẩm đang BẬT để tìm kiếm trên Lazada.</p>
+            </div>
+            <div class="tab-actions-group">
+              <nz-input-group [nzPrefix]="prefixSearch" class="search-input">
+                <input type="text" nz-input placeholder="Lọc theo tên sản phẩm..." [(ngModel)]="productSearch" />
+              </nz-input-group>
+              <ng-template #prefixSearch>🔍</ng-template>
+
+              <button nz-button nzType="primary" (click)="openAddProductModal()">
+                ➕ Thêm SP Thủ Công
+              </button>
+              <button nz-button nzDanger nz-tooltip (click)="cleanupJunkProducts()" [nzLoading]="cleaningJunk" nzTooltipTitle="Tự động xóa các từ khóa rác / câu dài / tiêu đề nhóm FB">
+                🧹 Dọn Rác Từ Khóa
+              </button>
+              <button nz-button (click)="loadProducts()" [nzLoading]="loading">
+                🔄 Tải lại
+              </button>
+            </div>
+          </div>
+
+          <nz-table
+            #prodTable
+            [nzData]="filteredProducts"
+            [nzLoading]="loading"
+            [nzPageSize]="10"
+            nzSize="middle"
+            class="custom-table"
+          >
+            <thead>
+              <tr>
+                <th nzWidth="60px">ID</th>
+                <th>Tên Sản Phẩm</th>
+                <th>Từ Khóa Tìm Kiếm Lazada</th>
+                <th>Giá TB Thị Trường</th>
+                <th>Biên Độ FB</th>
+                <th>Số Mẫu</th>
+                <th>Lọc LazMall</th>
+                <th>Theo Dõi</th>
+                <th nzWidth="140px">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of prodTable.data">
+                <td>#{{ p.id }}</td>
+                <td>
+                  <div class="product-title-text font-bold">{{ p.name }}</div>
+                  <div class="meta-sub">Cập nhật: {{ formatTime(p.updated_at) }}</div>
+                </td>
+                <td>
+                  <code class="keyword-pill">{{ p.clean_keyword || p.name }}</code>
+                </td>
+                <td>
+                  <span class="price-highlight">{{ p.avg_price | number:'1.0-0' }} đ</span>
+                </td>
+                <td>
+                  <div class="price-range">
+                    {{ p.min_price | number:'1.0-0' }} - {{ p.max_price | number:'1.0-0' }} đ
+                  </div>
+                </td>
+                <td>
+                  <nz-tag nzColor="cyan">{{ p.sample_count }} bài viết</nz-tag>
+                </td>
+                <td>
+                  <nz-tag [nzColor]="p.filter_mall_only ? 'magenta' : 'default'">
+                    {{ p.filter_mall_only ? '🎖️ LazMall' : '🌐 Tất cả' }}
+                  </nz-tag>
+                </td>
+                <td>
+                  <nz-switch
+                    [ngModel]="!!p.is_active"
+                    (ngModelChange)="toggleProduct(p)"
+                    nzCheckedChildren="ON"
+                    nzUnCheckedChildren="OFF"
+                  ></nz-switch>
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <button nz-button nzSize="small" nzType="default" nz-tooltip (click)="openTestSearch(p.clean_keyword || p.name, !!p.filter_mall_only)" nzTooltipTitle="Test tìm kiếm trên Lazada">
+                      🔍
+                    </button>
+                    <button nz-button nzSize="small" nzType="default" nz-tooltip (click)="openEditProductModal(p)" nzTooltipTitle="Sửa sản phẩm">
+                      ✏️
+                    </button>
+                    <button nz-button nzSize="small" nzDanger nz-tooltip (click)="deleteProduct(p)" nzTooltipTitle="Xóa">
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </nz-table>
+        </div>
+      </nz-tab>
+
+      <!-- TAB 3: CHỌN 5 NHÓM FB QUÉT BÀI -->
+      <!-- TAB 3: CHỌN NHÓM FB QUÉT BÀI -->
+      <nz-tab [nzTitle]="'👥 Nhóm FB Quét Giá Thị Trường'">
+        <div class="tab-pane-content">
+          <div class="tab-header-row">
+            <div>
+              <h3 class="pane-title">🎯 Danh Sách Nhóm Quét Giá Thị Trường Lazada</h3>
+              <p class="pane-desc">
+                Danh sách nhóm Facebook chuyên dùng để cào bài viết bóc tách giá thị trường (Tách biệt hoàn toàn với nhóm Đăng Bài). Tích chọn các nhóm để bot cào bài và đào sâu dữ liệu.
+              </p>
+            </div>
+            <div class="tab-actions-group" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div class="account-select-box">
+                <span>Số bài cào/nhóm:</span>
+                <nz-select [(ngModel)]="scanPostsPerGroup" style="width: 110px;">
+                  <nz-option [nzValue]="30" nzLabel="30 bài"></nz-option>
+                  <nz-option [nzValue]="50" nzLabel="50 bài"></nz-option>
+                  <nz-option [nzValue]="80" nzLabel="80 bài"></nz-option>
+                  <nz-option [nzValue]="100" nzLabel="100 bài"></nz-option>
+                  <nz-option [nzValue]="150" nzLabel="150 bài"></nz-option>
+                </nz-select>
+              </div>
+
+              <div class="account-select-box">
+                <span>Nick cào:</span>
+                <nz-select [(ngModel)]="selectedAccount" style="width: 125px;">
+                  <nz-option nzValue="nick_a" nzLabel="👤 nick_a"></nz-option>
+                  <nz-option nzValue="nick_b" nzLabel="👤 nick_b"></nz-option>
+                </nz-select>
+              </div>
+
+              <button nz-button nzType="primary" class="btn-scan-trigger" [nzLoading]="scanningFb" (click)="triggerScanFbNow()">
+                🚀 Quét {{ selectedGroupUrls.length > 0 ? selectedGroupUrls.length + ' Nhóm' : '' }} Ngay (~{{ (selectedGroupUrls.length || 1) * scanPostsPerGroup }} bài)
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Add Hunter Group Bar -->
+          <div class="add-hunter-group-card">
+            <span class="add-title">➕ Thêm Nhóm Facebook Quét Giá:</span>
+            <input nz-input [(ngModel)]="newHunterGroupUrl" placeholder="Dán link nhóm Facebook (VD: https://www.facebook.com/groups/chobanphimco)" style="flex: 1; max-width: 450px;" />
+            <input nz-input [(ngModel)]="newHunterGroupName" placeholder="Tên gợi nhớ (VD: Chợ Bàn Phím Cơ)" style="width: 220px;" />
+            <button nz-button nzType="default" (click)="addHunterGroup()" [nzLoading]="addingHunterGroup">
+              Lưu Vào Nhóm Quét
+            </button>
+          </div>
+
+          <!-- Live Scan Status Box -->
+          <div *ngIf="scanFbStatus" class="scan-status-banner" [ngClass]="scanFbStatus.is_running ? 'running' : 'done'">
+            <div class="status-icon">
+              <span *ngIf="scanFbStatus.is_running">⏳</span>
+              <span *ngIf="!scanFbStatus.is_running && !scanFbStatus.error">✅</span>
+              <span *ngIf="scanFbStatus.error">❌</span>
+            </div>
+            <div class="status-info">
+              <div class="status-headline">
+                {{ scanFbStatus.is_running ? 'Đang quét bài viết từ các nhóm Facebook trong nền...' : (scanFbStatus.error ? 'Lỗi quét bài: ' + scanFbStatus.error : 'Quét hoàn tất!') }}
+              </div>
+              <div *ngIf="scanFbStatus.last_result" class="status-details">
+                Đã duyệt: <b>{{ scanFbStatus.last_result.total_posts_read }}</b> bài viết | Bóc tách: <b>{{ scanFbStatus.last_result.products_found }}</b> sản phẩm | Đã lưu vào DB: <b>{{ scanFbStatus.last_result.products_saved }}</b> sản phẩm mới.
+              </div>
+            </div>
+          </div>
+
+          <!-- Group Selection List -->
+          <div class="groups-select-list">
+            <div class="selection-counter" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <div>
+                Đã chọn: <b class="text-blue">{{ selectedGroupUrls.length }} / {{ availableGroups.length }} nhóm</b>
+                <span class="selection-hint">• Dự kiến đào sâu: ~{{ selectedGroupUrls.length * scanPostsPerGroup }} bài viết</span>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button nz-button nzSize="small" nzType="default" (click)="selectAllHunterGroups()">
+                  ☑️ Chọn Tất Cả ({{ availableGroups.length }} Nhóm)
+                </button>
+                <button nz-button nzSize="small" nzType="default" *ngIf="selectedGroupUrls.length > 0" (click)="deselectAllHunterGroups()">
+                  ✕ Bỏ Chọn
+                </button>
+              </div>
+            </div>
+
+            <div class="group-items-grid" *ngIf="availableGroups.length > 0">
+              <div
+                *ngFor="let g of availableGroups"
+                class="group-select-card"
+                [ngClass]="{ 'is-selected': selectedGroupUrls.includes(g.url) }"
+                (click)="toggleGroupSelection(g.url)"
+              >
+                <div class="card-check">
+                  <input type="checkbox" [checked]="selectedGroupUrls.includes(g.url)" (click)="$event.stopPropagation(); toggleGroupSelection(g.url)" />
+                </div>
+                <div class="group-info">
+                  <div class="group-name">{{ g.name || 'Hội Nhóm Facebook' }}</div>
+                  <div class="group-meta">
+                    <span>👥 {{ g.members | number }} thành viên</span>
+                    <span class="niche-badge">{{ g.niche || 'công nghệ' }}</span>
+                  </div>
+                  <div class="group-url-text">{{ g.url }}</div>
+                </div>
+                <div class="card-delete-action">
+                  <button nz-button nzSize="small" nzDanger nzType="text" nz-tooltip (click)="removeHunterGroup(g.url, $event)" nzTooltipTitle="Gỡ khỏi danh sách nhóm quét">
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="availableGroups.length === 0" class="empty-hunter-groups">
+              <p>Chưa có nhóm nào trong danh sách quét giá Lazada. Dán URL nhóm vào ô bên trên để thêm nhóm mục tiêu!</p>
+            </div>
+          </div>
+        </div>
+      </nz-tab>
+
+      <!-- TAB 4: NHẬT KÝ & LOG QUÉT DEAL (5P) -->
+      <nz-tab [nzTitle]="'📜 Nhật Ký & Log Quét Deal (5p)'">
+        <div class="tab-pane-content">
+          <!-- Log Sub-Tab Switcher -->
+          <div class="log-type-switcher">
+            <button
+              class="log-switch-btn"
+              [class.active]="activeLogType === 'hunter'"
+              (click)="activeLogType = 'hunter'"
+            >
+              🎯 Săn Model Theo Dõi ({{ hunterLogs.length }} log)
+            </button>
+            <button
+              class="log-switch-btn"
+              [class.active]="activeLogType === 'deep_drop'"
+              (click)="activeLogType = 'deep_drop'"
+            >
+              🔥 Radar Sập Sàn Tmall ({{ deepDropLogs.length }} log)
+            </button>
+          </div>
+
+          <!-- SUB-VIEW 1: HUNTER LOGS -->
+          <div *ngIf="activeLogType === 'hunter'">
+            <div class="tab-header-row">
+              <div>
+                <h3 class="pane-title">Nhật Ký Quét Săn Deal Model Định Kỳ (Mỗi 5 Phút)</h3>
+                <p class="pane-desc">
+                  Hệ thống tự động chạy ngầm định kỳ mỗi 5 phút để so sánh giá các sản phẩm đang theo dõi trên Lazada với giá trung bình FB.
+                </p>
+              </div>
+              <div class="tab-actions-group">
+                <button nz-button nzType="primary" class="btn-hunter-action" [nzLoading]="runningHunterNow" (click)="runHunterNow()">
+                  ⚡ Săn Deal Ngay
+                </button>
+                <button nz-button (click)="loadHunterLogs()" [nzLoading]="loadingLogs">
+                  🔄 Làm Mới Log
+                </button>
+                <button nz-button nzDanger (click)="clearHunterLogs()" [nzLoading]="clearingLogs" *ngIf="hunterLogs.length > 0">
+                  🗑️ Xóa Lịch Sử Săn Model
+                </button>
+              </div>
+            </div>
+
+            <!-- Status Banner -->
+            <div class="hunter-status-grid mb-16">
+              <div class="status-card card-glass">
+                <div class="status-card-label">Trạng Thái Tự Động 5p</div>
+                <div class="status-card-val">
+                  <span *ngIf="config.enabled" class="badge-status online">🟢 Chạy ngầm định kỳ ({{ config.interval_minutes }}p/lần)</span>
+                  <span *ngIf="!config.enabled" class="badge-status offline">⚪ Đang tạm dừng</span>
+                </div>
+              </div>
+              <div class="status-card card-glass">
+                <div class="status-card-label">Lần Quét Gần Nhất</div>
+                <div class="status-card-val text-cyan">
+                  {{ hunterLogs.length > 0 ? formatTime(hunterLogs[0].started_at) : 'Chưa có chu kỳ nào' }}
+                </div>
+              </div>
+              <div class="status-card card-glass">
+                <div class="status-card-label">Tổng Chu Kỳ Đã Ghi</div>
+                <div class="status-card-val text-amber">
+                  {{ hunterLogs.length }} chu kỳ
+                </div>
+              </div>
+              <div class="status-card card-glass">
+                <div class="status-card-label">Sản Phẩm Đang Theo Dõi</div>
+                <div class="status-card-val text-green">
+                  {{ activeProductsCount }} sản phẩm
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Hunter Logs -->
+            <nz-table
+              #logTable
+              [nzData]="hunterLogs"
+              [nzLoading]="loadingLogs"
+              [nzPageSize]="10"
+              nzSize="middle"
+              class="custom-table"
+            >
+              <thead>
+                <tr>
+                  <th nzWidth="70px"># ID</th>
+                  <th>Thời Gian Quét</th>
+                  <th>Thời Lượng</th>
+                  <th>Kích Hoạt</th>
+                  <th>Trạng Thái</th>
+                  <th>Số SP Quét</th>
+                  <th>Deal Hời Phát Hiện</th>
+                  <th>Thông Báo & Kết Quả Chi Tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let l of logTable.data">
+                  <td>#{{ l.id }}</td>
+                  <td>
+                    <div class="font-bold">{{ formatTime(l.started_at) }}</div>
+                    <div class="meta-sub" *ngIf="l.finished_at">Kết thúc: {{ formatTime(l.finished_at) }}</div>
+                  </td>
+                  <td>
+                    <span *ngIf="l.finished_at && l.started_at" class="duration-badge">
+                      ⏱️ {{ (l.finished_at - l.started_at) | number:'1.1-1' }}s
+                    </span>
+                    <span *ngIf="!l.finished_at" class="text-blue">Đang quét...</span>
+                  </td>
+                  <td>
+                    <nz-tag [nzColor]="l.trigger_type === 'auto_5m' ? 'blue' : 'purple'">
+                      {{ l.trigger_type === 'auto_5m' ? '⏰ Tự động 5p' : '👤 Thủ công' }}
+                    </nz-tag>
+                  </td>
+                  <td>
+                    <nz-tag [nzColor]="l.status === 'success' ? 'green' : (l.status === 'skipped' ? 'orange' : (l.status === 'running' ? 'processing' : 'red'))">
+                      {{ l.status === 'success' ? '✅ Thành công' : (l.status === 'skipped' ? '⏸️ Bỏ qua' : (l.status === 'running' ? '⏳ Đang quét' : '❌ Lỗi')) }}
+                    </nz-tag>
+                  </td>
+                  <td>
+                    <nz-tag nzColor="cyan">{{ l.products_scanned }} SP</nz-tag>
+                  </td>
+                  <td>
+                    <span *ngIf="l.deals_found > 0" class="badge-deal-alert font-bold">
+                      🔥 {{ l.deals_found }} deal hời
+                    </span>
+                    <span *ngIf="l.deals_found === 0" class="text-muted">
+                      0 deal
+                    </span>
+                  </td>
+                  <td>
+                    <div class="log-message-text">{{ l.message }}</div>
+                    <div *ngIf="l.details_parsed && l.details_parsed.length > 0" class="log-sub-details mt-4">
+                      <span *ngFor="let d of l.details_parsed" class="detail-item-chip mr-6">
+                        📦 <b>{{ d.product_name }}</b> (Lazada: {{ d.lowest_price ? (d.lowest_price | number:'1.0-0') + ' đ' : 'Chưa có giá' }} | TB FB: {{ d.avg_price | number:'1.0-0' }} đ)
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </nz-table>
+          </div>
+
+          <!-- SUB-VIEW 2: DEEP DROP LOGS -->
+          <div *ngIf="activeLogType === 'deep_drop'">
+            <div class="tab-header-row">
+              <div>
+                <h3 class="pane-title">Nhật Ký Radar Sập Sàn Tmall (Định Kỳ 5 Phút)</h3>
+                <p class="pane-desc">
+                  Radar quét đa ngành hàng LazMall/Tmall, tự động xoay vòng danh mục mỗi 5 phút để bắt các kèo sập giá phân loại (Single-SKU Gap $\ge$ 50%).
+                </p>
+              </div>
+              <div class="tab-actions-group">
+                <button nz-button class="btn-sync-cats" nz-tooltip [nzLoading]="syncingLazadaCategories" (click)="syncCategoriesFromLazada()" nzTooltipTitle="Cào trực tiếp cây danh mục & từ khóa gợi ý mới nhất từ Lazada Việt Nam">
+                  ⚡ Cào Danh Mục Lazada
+                </button>
+                <button nz-button class="btn-manage-cats" (click)="openManageCategoriesModal()" nz-tooltip nzTooltipTitle="Mở kho từ khóa & cấu hình các ngành hàng quét">
+                  📂 Kho Từ Khóa ({{ totalRadarKeywords }})
+                </button>
+                <button nz-button class="btn-radar-action" [nzLoading]="runningGeneralScanNow" (click)="runGeneralScanNow()">
+                  🔥 Quét Radar Ngay
+                </button>
+                <button nz-button (click)="loadDeepDropLogs()" [nzLoading]="loadingDeepDropLogs">
+                  🔄 Làm Mới Log
+                </button>
+                <button nz-button nzDanger (click)="clearDeepDropLogs()" [nzLoading]="clearingDeepDropLogs" *ngIf="deepDropLogs.length > 0">
+                  🗑️ Xóa Lịch Sử Radar
+                </button>
+              </div>
+            </div>
+
+            <!-- Deep Drop Status Banner -->
+            <div class="hunter-status-grid mb-16">
+              <div class="status-card card-glass">
+                <div class="status-card-label">Trạng Thái Tự Động 5p</div>
+                <div class="status-card-val">
+                  <span *ngIf="generalConfig.enabled" class="badge-status online">🟢 Đang chạy ngầm định kỳ ({{ generalConfig.interval_minutes }}p/lần)</span>
+                  <span *ngIf="!generalConfig.enabled" class="badge-status offline">⚪ Đang tạm dừng</span>
+                </div>
+              </div>
+              <div class="status-card card-glass">
+                <div class="status-card-label">Lần Quét Gần Nhất</div>
+                <div class="status-card-val text-cyan">
+                  {{ deepDropLogs.length > 0 ? formatTime(deepDropLogs[0].started_at) : 'Chưa có chu kỳ nào' }}
+                </div>
+              </div>
+              <div class="status-card card-glass">
+                <div class="status-card-label">Tổng Chu Kỳ Đã Ghi</div>
+                <div class="status-card-val text-rose">
+                  {{ deepDropLogs.length }} chu kỳ
+                </div>
+              </div>
+              <div class="status-card card-glass clickable-card" (click)="openManageCategoriesModal()" nz-tooltip nzTooltipTitle="Bấm để xem và quản lý kho từ khóa & ngành hàng">
+                <div class="status-card-label">Kho Từ Khóa Radar ⚙️</div>
+                <div class="status-card-val text-amber">
+                  {{ totalRadarCategories }} Ngành / {{ totalRadarKeywords }} Từ Khóa
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Deep Drop Logs -->
+            <nz-table
+              #deepLogTable
+              [nzData]="deepDropLogs"
+              [nzLoading]="loadingDeepDropLogs"
+              [nzPageSize]="10"
+              nzSize="middle"
+              class="custom-table"
+            >
+              <thead>
+                <tr>
+                  <th nzWidth="70px"># ID</th>
+                  <th>Thời Gian Quét</th>
+                  <th>Thời Lượng</th>
+                  <th>Trạng Thái</th>
+                  <th>Số Sản Phẩm Quét</th>
+                  <th>Kèo Sập Sàn</th>
+                  <th>Thông Báo Telegram</th>
+                  <th>Nội Dung Chi Tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let dl of deepLogTable.data">
+                  <td>#{{ dl.id }}</td>
+                  <td>
+                    <div class="font-bold">{{ formatTime(dl.started_at) }}</div>
+                    <div class="meta-sub" *ngIf="dl.finished_at">Xong: {{ formatTime(dl.finished_at) }}</div>
+                  </td>
+                  <td>
+                    <span *ngIf="dl.finished_at && dl.started_at" class="duration-badge">
+                      ⏱️ {{ (dl.finished_at - dl.started_at) | number:'1.1-1' }}s
+                    </span>
+                    <span *ngIf="!dl.finished_at" class="text-blue">Đang quét...</span>
+                  </td>
+                  <td>
+                    <nz-tag [nzColor]="dl.status === 'success' ? 'green' : (dl.status === 'running' ? 'processing' : 'red')">
+                      {{ dl.status === 'success' ? '✅ Thành công' : (dl.status === 'running' ? '⏳ Đang quét' : '❌ Lỗi') }}
+                    </nz-tag>
+                  </td>
+                  <td>
+                    <nz-tag nzColor="cyan">{{ dl.items_scanned }} SP</nz-tag>
+                  </td>
+                  <td>
+                    <span *ngIf="dl.deals_found > 0" class="badge-deal-alert font-bold" style="background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4);">
+                      🚨 {{ dl.deals_found }} kèo sập sàn
+                    </span>
+                    <span *ngIf="dl.deals_found === 0" class="text-muted">
+                      0 kèo
+                    </span>
+                  </td>
+                  <td>
+                    <nz-tag [nzColor]="dl.telegram_sent > 0 ? 'blue' : 'default'">
+                      {{ dl.telegram_sent > 0 ? '📢 Đã gửi Tele (' + dl.telegram_sent + ')' : 'Chưa có' }}
+                    </nz-tag>
+                  </td>
+                  <td>
+                    <div class="log-message-text">{{ dl.message }}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </nz-table>
+          </div>
+        </div>
+      </nz-tab>
+
+      <!-- TAB 5: CẤU HÌNH COOKIE & BỘ LỌC LAZMALL -->
+      <nz-tab [nzTitle]="'⚙️ Cấu Hình Cookie & Bộ Lọc LazMall'">
+        <div class="tab-pane-content">
+          <div class="settings-grid-layout">
+            
+            <!-- Left: Cookie Lazada Box -->
+            <div class="settings-box card-glass">
+              <h4 class="box-title">🍪 Thêm / Cập Nhật Cookie Lazada</h4>
+              <p class="box-desc">
+                Dán cookie Lazada từ tiện ích <b>Cookie-Editor</b> (dạng JSON array) hoặc chuỗi Header (<code>name=val;...</code>) từ trang <code>lazada.vn</code> để crawler hoạt động ổn định và lấy đúng giá ưu đãi.
+              </p>
+
+              <div class="cookie-status-bar">
+                <span *ngIf="cookieInfo.exists" class="badge-status online">
+                  🟢 Trạng thái: Đã có Cookie ({{ cookieInfo.count }} items)
+                </span>
+                <span *ngIf="!cookieInfo.exists" class="badge-status offline">
+                  🔴 Trạng thái: Chưa có file Cookie
+                </span>
+                <span class="user-nick-text" *ngIf="cookieInfo.user_name">
+                  👤 Tài khoản: <b>{{ cookieInfo.user_name }}</b>
+                </span>
+              </div>
+
+              <div class="form-group">
+                <label>Dán nội dung Cookie Lazada vào đây:</label>
+                <textarea
+                  nz-input
+                  rows="6"
+                  placeholder='Dán JSON: [{"name": "lzd_sid", "value": "..."}, ...] hoặc chuỗi "lzd_sid=...; user_id=..."'
+                  [(ngModel)]="cookieInput"
+                ></textarea>
+              </div>
+
+              <div class="form-actions">
+                <button nz-button nzType="primary" class="btn-save-cookie" [nzLoading]="savingCookie" (click)="saveCookie()">
+                  💾 Lưu Cookie Lazada
+                </button>
+                <button nz-button class="btn-test-connect" [nzLoading]="testingCookie" (click)="testCookie()">
+                  ⚡ Kiểm Tra Kết Nối Lazada
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Hunter Rules & Filters -->
+            <div class="settings-box card-glass">
+              <h4 class="box-title">🎯 Quy Tắc Lọc Deal & Săn Hàng</h4>
+              <p class="box-desc">Thiết lập các tiêu chí lọc để chỉ bắt những deal thực sự hời và đảm bảo hàng chính hãng.</p>
+
+              <div class="form-group-row">
+                <div class="form-group flex-1">
+                  <label>Chỉ săn hàng LazMall / Tmall (Chính Hãng):</label>
+                  <div class="switch-row">
+                    <nz-switch
+                      [(ngModel)]="config.filter_mall_only"
+                      nzCheckedChildren="CHỈ LAZMALL"
+                      nzUnCheckedChildren="TẤT CẢ SHOP"
+                    ></nz-switch>
+                    <span class="switch-hint">
+                      {{ config.filter_mall_only ? 'Chỉ quét gian hàng chính hãng Flagship/LazMall' : 'Quét cả shop thường' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="form-group flex-1">
+                  <label>% Rẻ hơn tối thiểu để gửi Telegram:</label>
+                  <nz-input-group nzAddOnAfter="%">
+                    <input type="number" nz-input [(ngModel)]="config.min_discount_pct" min="1" max="90" />
+                  </nz-input-group>
+                </div>
+              </div>
+
+              <div class="form-group-row">
+                <div class="form-group flex-1">
+                  <label>Chu kỳ quét tự động (phút):</label>
+                  <nz-input-group nzAddOnAfter="phút">
+                    <input type="number" nz-input [(ngModel)]="config.interval_minutes" min="1" max="60" />
+                  </nz-input-group>
+                </div>
+
+                <div class="form-group flex-1">
+                  <label>Số kết quả tìm kiếm tối đa mỗi SP:</label>
+                  <nz-input-group nzAddOnAfter="kết quả">
+                    <input type="number" nz-input [(ngModel)]="config.max_search_results" min="3" max="30" />
+                  </nz-input-group>
+                </div>
+              </div>
+
+              <div class="form-actions mt-16">
+                <button nz-button nzType="primary" [nzLoading]="savingConfig" (click)="saveConfig()">
+                  💾 Lưu Quy Tắc Săn Deal
+                </button>
+              </div>
+
+              <hr class="divider-subtle" />
+
+              <!-- Quick Search Test Box -->
+              <h4 class="box-title mt-16">🔬 Thử Nghiệm Tìm Kiếm Lazada Trực Tiếp</h4>
+              <p class="box-desc">Gõ thử 1 sản phẩm để kiểm tra các phân loại (SKU) và giá trên Lazada ngay bây giờ.</p>
+
+              <!-- LazMall Toggle for Test Search -->
+              <div class="test-search-filter-box">
+                <nz-switch
+                  [(ngModel)]="testFilterMall"
+                  nzCheckedChildren="CHỈ LAZMALL"
+                  nzUnCheckedChildren="TẤT CẢ SHOP"
+                ></nz-switch>
+                <span class="test-filter-hint">
+                  {{ testFilterMall ? 'Chỉ tìm gian hàng chính hãng LazMall' : 'Tìm tất cả các shop (khuyên dùng khi test S75 Pro hoặc hàng xách tay)' }}
+                </span>
+              </div>
+
+              <div class="quick-test-search">
+                <nz-input-group nzSearch [nzAddOnAfter]="btnSearch">
+                  <input type="text" nz-input placeholder="VD: s75pro, son black rouge a12..." [(ngModel)]="testKeyword" (keyup.enter)="doTestSearch()" />
+                </nz-input-group>
+                <ng-template #btnSearch>
+                  <button nz-button nzType="primary" [nzLoading]="testSearching" (click)="doTestSearch()">
+                    🔍 Tìm Kiếm
+                  </button>
+                </ng-template>
+              </div>
+
+              <!-- No result helper notice -->
+              <div *ngIf="hasSearched && testSearchResults.length === 0 && !testSearching" class="no-result-notice">
+                <div class="notice-icon">⚠️</div>
+                <div class="notice-body">
+                  <div class="notice-title">Không tìm thấy sản phẩm cho từ khóa <b>"{{ testKeyword }}"</b></div>
+                  <div *ngIf="testFilterMall" class="notice-sub">
+                    Sản phẩm này có thể không có gian hàng chính hãng LazMall tại Việt Nam (hầu hết phím cơ Aula S75 Pro là hàng xách tay/shop quốc tế).
+                  </div>
+                  <button *ngIf="testFilterMall" nz-button nzType="primary" nzSize="small" class="mt-8" (click)="retryTestWithoutMall()">
+                    🔄 Tắt Lọc LazMall & Tìm Lại Tất Cả Shop
+                  </button>
+                </div>
+              </div>
+
+              <!-- Test Search Result Preview -->
+              <div *ngIf="testSearchResults.length > 0" class="test-results-box">
+                <div class="test-results-header">
+                  Tìm thấy <b>{{ testSearchResults.length }}</b> sản phẩm Lazada:
+                </div>
+                <div class="test-item-card" *ngFor="let it of testSearchResults">
+                  <div class="test-item-title">
+                    <span *ngIf="it.is_mall" class="lazmall-badge-sm">LazMall</span>
+                    <b>{{ it.title }}</b>
+                  </div>
+                  <div class="test-item-meta">
+                    Shop: <b>{{ it.seller_name }}</b> | Giá hiển thị: <span class="price-highlight">{{ it.price | number }} đ</span>
+                  </div>
+                  <div class="test-variations-list">
+                    <span class="var-chip" *ngFor="let v of it.variations">
+                      🏷️ {{ v.name }}: <b>{{ v.price | number }} đ</b>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </nz-tab>
+
+    </nz-tabset>
+  </div>
+</div>
+
+<!-- Modal Thêm / Sửa Sản Phẩm Theo Dõi -->
+<nz-modal
+  [(nzVisible)]="newProductModalVisible"
+  [nzTitle]="isEditing ? '✏️ Cập Nhật Sản Phẩm Theo Dõi' : '➕ Thêm Sản Phẩm Theo Dõi Mới'"
+  (nzOnCancel)="newProductModalVisible = false"
+  (nzOnOk)="saveProduct()"
+  [nzOkText]="isEditing ? 'Lưu Thay Đổi' : 'Thêm Sản Phẩm'"
+>
+  <ng-container *nzModalContent>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>Tên sản phẩm (*):</label>
+        <input nz-input placeholder="VD: Son Black Rouge Velvet Tint A12" [(ngModel)]="editingProduct.name" />
+      </div>
+
+      <div class="form-group">
+        <label>Từ khóa tối ưu tìm kiếm Lazada:</label>
+        <input nz-input placeholder="VD: black rouge a12" [(ngModel)]="editingProduct.clean_keyword" />
+        <small class="hint-text">Bỏ các từ thừa để Lazada tìm chính xác nhất.</small>
+      </div>
+
+      <div class="form-group-row">
+        <div class="form-group flex-1">
+          <label>Giá trung bình thị trường FB (VNĐ) (*):</label>
+          <input type="number" nz-input [(ngModel)]="editingProduct.avg_price" min="1000" step="1000" />
+        </div>
+        <div class="form-group flex-1">
+          <label>% Rẻ hơn để báo Tele:</label>
+          <input type="number" nz-input [(ngModel)]="editingProduct.min_discount_pct" min="1" max="90" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Lọc LazMall:</label>
+        <div>
+          <nz-switch
+            [ngModel]="!!editingProduct.filter_mall_only"
+            (ngModelChange)="editingProduct.filter_mall_only = $event ? 1 : 0"
+            nzCheckedChildren="Chỉ LazMall"
+            nzUnCheckedChildren="Tất Cả Shop"
+          ></nz-switch>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- Modal Thử Nghiệm Tìm Kiếm Lazada Trực Tiếp -->
+<nz-modal
+  [(nzVisible)]="testSearchModalVisible"
+  [nzTitle]="'🔬 Thử Nghiệm Tìm Kiếm Lazada: ' + testKeyword"
+  (nzOnCancel)="testSearchModalVisible = false"
+  [nzFooter]="null"
+  nzWidth="700px"
+>
+  <ng-container *nzModalContent>
+    <div class="modal-test-search">
+      <div class="test-search-filter-box mb-12">
+        <nz-switch
+          [(ngModel)]="testFilterMall"
+          (ngModelChange)="doTestSearch()"
+          nzCheckedChildren="CHỈ LAZMALL"
+          nzUnCheckedChildren="TẤT CẢ SHOP"
+        ></nz-switch>
+        <span class="test-filter-hint">
+          {{ testFilterMall ? 'Chỉ tìm gian hàng LazMall' : 'Tìm trên tất cả các shop' }}
+        </span>
+      </div>
+
+      <div class="quick-test-search mb-16">
+        <nz-input-group nzSearch [nzAddOnAfter]="modalBtnSearch">
+          <input type="text" nz-input placeholder="Nhập từ khóa tìm kiếm..." [(ngModel)]="testKeyword" (keyup.enter)="doTestSearch()" />
+        </nz-input-group>
+        <ng-template #modalBtnSearch>
+          <button nz-button nzType="primary" [nzLoading]="testSearching" (click)="doTestSearch()">
+            🔍 Tìm Kiếm
+          </button>
+        </ng-template>
+      </div>
+
+      <div *ngIf="testSearching" class="text-center p-20">
+        <nz-spin nzTip="Đang tìm kiếm trên Lazada..."></nz-spin>
+      </div>
+
+      <div *ngIf="hasSearched && testSearchResults.length === 0 && !testSearching" class="no-result-notice">
+        <div class="notice-icon">⚠️</div>
+        <div class="notice-body">
+          <div class="notice-title">Không tìm thấy sản phẩm cho <b>"{{ testKeyword }}"</b></div>
+          <div *ngIf="testFilterMall" class="notice-sub">
+            Sản phẩm có thể không thuộc gian hàng chính hãng LazMall.
+          </div>
+          <button *ngIf="testFilterMall" nz-button nzType="primary" nzSize="small" class="mt-8" (click)="retryTestWithoutMall()">
+            🔄 Tắt Lọc LazMall & Tìm Lại Tất Cả Shop
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="testSearchResults.length > 0" class="test-results-box" style="max-height: 400px;">
+        <div class="test-results-header">
+          Tìm thấy <b>{{ testSearchResults.length }}</b> sản phẩm:
+        </div>
+        <div class="test-item-card" *ngFor="let it of testSearchResults">
+          <div class="test-item-title">
+            <span *ngIf="it.is_mall" class="lazmall-badge-sm">LazMall</span>
+            <b>{{ it.title }}</b>
+          </div>
+          <div class="test-item-meta">
+            Shop: <b>{{ it.seller_name }}</b> | Giá: <span class="price-highlight">{{ it.price | number }} đ</span>
+            <span *ngIf="it.orig_price > it.price" class="price-market ml-8">{{ it.orig_price | number }} đ</span>
+          </div>
+          <div class="test-variations-list">
+            <span class="var-chip" *ngFor="let v of it.variations">
+              🏷️ {{ v.name }}: <b>{{ v.price | number }} đ</b>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- Modal Quản Lý Kho Từ Khóa & Ngành Hàng Radar -->
+<nz-modal
+  [(nzVisible)]="manageCategoriesModalVisible"
+  [nzTitle]="'📂 Quản Lý Kho Từ Khóa Radar Săn Kèo Sập Sàn (' + totalRadarCategories + ' Ngành / ' + totalRadarKeywords + ' Từ Khóa)'"
+  (nzOnCancel)="manageCategoriesModalVisible = false"
+  [nzFooter]="null"
+  nzWidth="960px"
+>
+  <ng-container *nzModalContent>
+    <div class="manage-cats-modal-content">
+      <div class="manage-cats-toolbar mb-16">
+        <div class="toolbar-left">
+          <button nz-button nzType="primary" class="btn-sync-cats" [nzLoading]="syncingLazadaCategories" (click)="syncCategoriesFromLazada()" nz-tooltip nzTooltipTitle="Cào trực tiếp cây danh mục & từ khóa gợi ý mới nhất từ Lazada">
+            ⚡ Cào Cập Nhật Danh Mục Lazada
+          </button>
+          <button nz-button nzType="default" (click)="openAddCategoryModal()">
+            ➕ Thêm Ngành Hàng Mới
+          </button>
+          <button nz-button nzDanger nzType="default" [nzLoading]="resettingRadarCategories" (click)="resetRadarCategoriesToDefault()" nz-tooltip nzTooltipTitle="Khôi phục lại bộ chuẩn 13 ngành / 260 từ khóa chính hãng">
+            🔄 Khôi Phục 13 Ngành Chuẩn (260 Từ Khóa)
+          </button>
+        </div>
+        <div class="toolbar-right">
+          <button nz-button (click)="loadRadarCategories()" [nzLoading]="loadingRadarCategories">
+            🔄 Làm Mới
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="loadingRadarCategories" class="text-center p-20">
+        <nz-spin nzTip="Đang tải danh sách ngành hàng..."></nz-spin>
+      </div>
+
+      <div class="cats-table-container" *ngIf="!loadingRadarCategories">
+        <nz-table
+          #catsTable
+          [nzData]="radarCategories"
+          [nzPageSize]="8"
+          nzSize="middle"
+          class="custom-table"
+        >
+          <thead>
+            <tr>
+              <th nzWidth="60px">Icon</th>
+              <th nzWidth="220px">Ngành Hàng</th>
+              <th>Danh Sách Từ Khóa Quét</th>
+              <th nzWidth="100px" class="text-center">Quét 5p</th>
+              <th nzWidth="120px" class="text-center">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of catsTable.data">
+              <td class="text-center text-xl">{{ c.icon || '🏷️' }}</td>
+              <td>
+                <div class="font-bold text-white">{{ c.name }}</div>
+                <div class="meta-sub">
+                  <nz-tag nzColor="blue">{{ c.keywords_count || c.keywords.length }} từ khóa</nz-tag>
+                </div>
+              </td>
+              <td>
+                <div class="keywords-chip-list">
+                  <span class="kw-mini-tag" *ngFor="let kw of c.keywords.slice(0, 8)">{{ kw }}</span>
+                  <span class="kw-more-tag" *ngIf="c.keywords.length > 8">+{{ c.keywords.length - 8 }} từ khóa khác</span>
+                </div>
+              </td>
+              <td class="text-center">
+                <nz-switch
+                  [ngModel]="c.is_active"
+                  (ngModelChange)="toggleRadarCategoryActive(c)"
+                  nzCheckedChildren="ON"
+                  nzUnCheckedChildren="OFF"
+                ></nz-switch>
+              </td>
+              <td class="text-center">
+                <div class="row-actions justify-center">
+                  <button nz-button nzSize="small" nzType="default" (click)="openEditCategoryModal(c)" nz-tooltip nzTooltipTitle="Sửa ngành hàng & từ khóa">
+                    ✏️ Sửa
+                  </button>
+                  <button nz-button nzSize="small" nzDanger (click)="deleteRadarCategory(c.id, $event)" nz-tooltip nzTooltipTitle="Xóa ngành hàng">
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </nz-table>
+      </div>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- Modal Thêm / Sửa Ngành Hàng & Từ Khóa -->
+<nz-modal
+  [(nzVisible)]="categoryModalVisible"
+  [nzTitle]="isEditingCategory ? ('✏️ Cập Nhật Ngành Hàng: ' + editingCategory.name) : '➕ Thêm Ngành Hàng Mới Vào Radar'"
+  (nzOnCancel)="categoryModalVisible = false"
+  (nzOnOk)="saveRadarCategory()"
+  [nzOkText]="isEditingCategory ? 'Lưu Thay Đổi' : 'Thêm Ngành Hàng'"
+  [nzOkLoading]="savingCategory"
+  nzWidth="650px"
+>
+  <ng-container *nzModalContent>
+    <div class="modal-form">
+      <div class="form-group-row">
+        <div class="form-group" style="width: 100px;">
+          <label>Icon:</label>
+          <input nz-input placeholder="VD: 💻" [(ngModel)]="editingCategory.icon" />
+        </div>
+        <div class="form-group flex-1">
+          <label>Tên Ngành Hàng (*):</label>
+          <input nz-input placeholder="VD: Thiết Bị Điện Tử & Gaming" [(ngModel)]="editingCategory.name" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Danh Sách Từ Khóa Quét (Mỗi dòng một từ khóa, không cần dấu ngoặc kép) (*):</label>
+        <textarea
+          nz-input
+          rows="10"
+          placeholder="bàn phím cơ&#10;chuột gaming không dây&#10;tai nghe bluetooth&#10;..."
+          [(ngModel)]="editingKeywordsText"
+        ></textarea>
+        <small class="hint-text">
+          💡 Mẹo: Nhập các từ khóa tên loại sản phẩm kèm model hot hoặc chữ "chính hãng" để Radar Lazada quét ra đúng sản phẩm LazMall/Tmall hời nhất.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label>Trạng thái kích hoạt:</label>
+        <div>
+          <nz-switch
+            [(ngModel)]="editingCategory.is_active"
+            nzCheckedChildren="BẬT QUÉT"
+            nzUnCheckedChildren="TẠM TẮT"
+          ></nz-switch>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</nz-modal>

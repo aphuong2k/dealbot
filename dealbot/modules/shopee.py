@@ -220,32 +220,58 @@ def fetch_shopee_categories() -> List[Dict[str, Any]]:
     return []
 
 def classify_product_niche(title: str, default_niche: str = "săn sale shopee") -> str:
-    """Tự động phân loại ngành hàng thông minh từ tiêu đề sản phẩm."""
+    """Tự động phân loại ngành hàng thông minh từ tiêu đề sản phẩm để map chuẩn xác vào Nhóm Facebook khi đăng bài."""
     if not title:
         return default_niche
     t = title.lower()
-    # 1. Mỹ phẩm / Chăm sóc sắc đẹp
-    if any(w in t for w in ["son ", "son môi", "kem ", "phấn", "serum", "mặt nạ", "tẩy trang", "sữa rửa mặt", 
-                           "nước hoa", "dưỡng da", "chống nắng", "trang điểm", "lotion", "mascara", "cushion", 
-                           "toner", "sữa tắm", "dầu gội", "nước tẩy trang", "kem dưỡng", "sắc đẹp", "skincare"]):
+
+    # 1. Mỹ phẩm / Sắc đẹp (Bao gồm bodymist, son, kem, serum, v.v.)
+    cosmetic_re = re.compile(r'\b(son|son môi|kem|phấn|serum|mặt nạ|tẩy trang|sữa rửa mặt|nước hoa|dưỡng da|chống nắng|trang điểm|lotion|mascara|cushion|toner|sữa tắm|dầu gội|skincare|bodymist|body mist|nước tẩy trang)\b', re.I)
+    if cosmetic_re.search(t):
         return "mỹ phẩm"
+
     # 2. Gia dụng / Nhà cửa & Đời sống
-    if any(w in t for w in ["nồi", "chảo", "nước giặt", "xả vải", "bếp", "bình giữ nhiệt", "lau nhà", 
-                           "túi rác", "hộp cơm", "dao ", "kệ ", "máy xay", "chổi", "khăn", "drap", 
-                           "ga giường", "chiếu", "gia dụng", "quạt", "đèn ", "vệ sinh", "băng vệ sinh"]):
+    home_re = re.compile(r'\b(nồi|chảo|nước giặt|xả vải|bếp|bình giữ nhiệt|lau nhà|túi rác|hộp cơm|máy xay|chổi|khăn|drap|ga giường|chiếu|gia dụng|quạt|đèn|vệ sinh|kệ để đồ|tẩy rửa|nước lau|nước tẩy|nhà tắm|bồn cầu|xịt phòng|nước rửa chén)\b', re.I)
+    if home_re.search(t):
         return "gia dụng"
+
     # 3. Mẹ & Bé
-    if any(w in t for w in ["sữa bột", "bỉm", "tã", "cho bé", "trẻ em", "bình sữa", "sơ sinh", "núm ti", 
-                           "xe đẩy", "nangrow", "nestle", "ăn dặm", "pha sẵn", "cho con", "mẹ và bé"]):
+    baby_re = re.compile(r'\b(sữa bột|bỉm|tã|trẻ em|bình sữa|sơ sinh|núm ti|xe đẩy|ăn dặm|mẹ và bé|mẹ bé|cho bé|cho con)\b', re.I)
+    if baby_re.search(t):
         return "mẹ và bé"
-    # 4. Công nghệ / Điện tử
-    if any(w in t for w in ["tai nghe", "sạc", "cáp", "pin dự phòng", "điện thoại", "chuột", "bàn phím", 
-                           "loa", "bluetooth", "cường lực", "ốp lưng", "củ sạc", "mic", "laptop", "máy tính", "công nghệ"]):
+
+    # 4. Công nghệ / Thiết bị điện tử
+    tech_re = re.compile(r'\b(tai nghe|sạc|cáp|pin dự phòng|điện thoại|chuột|bàn phím|loa|bluetooth|cường lực|ốp lưng|củ sạc|mic|laptop|máy tính|công nghệ|phím cơ|switch|keycap|màn hình|camera|smartwatch)\b', re.I)
+    if tech_re.search(t):
         return "đồ công nghệ giá rẻ"
-    # 5. Thời trang
-    if any(w in t for w in ["áo ", "quần ", "váy", "đầm", "giày", "dép", "sơ mi", "polo", "tất", "vớ", 
-                           "ví ", "balo", "túi xách", "thời trang", "hoodie", "cardigan", "sneaker"]):
-        return "thời trang"
+
+    # 5. Thể thao & Dã ngoại
+    sport_re = re.compile(r'\b(thể thao|gym|chạy bộ|camping|dã ngoại|yoga|lều|bình nước thể thao)\b', re.I)
+    if sport_re.search(t):
+        return "Thể Thao & Dã Ngoại"
+
+    # 6. Thời trang Nữ (Ưu tiên từ khóa nữ đặc trưng)
+    female_re = re.compile(r'\b(nữ|váy|đầm|chân váy|croptop|áo lót|quần lót nữ|bra|tiểu thư|búp bê|guốc|cao gót|cardigan|women|túi xách nữ|yếm nữ)\b', re.I)
+    
+    # 7. Thời trang Nam (Từ khóa nam đặc trưng)
+    male_re = re.compile(r'\b(nam|sơ mi nam|polo nam|áo thun nam|quần nam|quần âu nam|quần tây nam|quần jean nam|khoác nam|ví nam|thắt lưng nam|clutch nam|boxer|sịp nam|giày nam|dép nam|men|cạo râu|dao cạo)\b', re.I)
+
+    has_female = bool(female_re.search(t))
+    has_male = bool(male_re.search(t))
+
+    if has_female and not has_male:
+        return "Thời Trang Nữ"
+    if has_male and not has_female:
+        return "Thời Trang Nam"
+    if has_female:
+        return "Thời Trang Nữ"
+    if has_male:
+        return "Thời Trang Nam"
+
+    # 8. Quần áo / Giày dép chung chung
+    if any(w in t for w in ["áo ", "quần ", "giày", "dép", "balo", "ví ", "tất", "vớ", "mũ", "nón", "thời trang", "sneaker", "hoodie"]):
+        return "Thời Trang Nữ" if ("nữ" in t or "váy" in t) else "Thời Trang Nam"
+
     return default_niche
 
 def crawl_shopee_flash_sale(limit: int = 60, target_niche: Optional[str] = None) -> List[Dict[str, Any]]:

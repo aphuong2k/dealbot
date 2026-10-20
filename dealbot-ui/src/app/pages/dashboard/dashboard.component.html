@@ -17,8 +17,15 @@
 
       <!-- Quick Action Buttons -->
       <div class="actions-group">
-        <button nz-button class="btn-run-all" (click)="triggerRunAll()" [nzLoading]="actionLoading['all']">
-          🚀 Chạy Toàn Bộ Luồng (Cào Deal ➔ Lập Lịch ➔ Đăng Bài)
+        <button
+          nz-button
+          class="btn-run-all"
+          (click)="triggerRunAll()"
+          [nzLoading]="pipeline.is_running || actionLoading['all']"
+          [disabled]="pipeline.is_running"
+        >
+          <span *ngIf="!pipeline.is_running">🚀 Chạy Toàn Bộ Luồng (Cào Deal ➔ Lập Lịch ➔ Đăng Bài)</span>
+          <span *ngIf="pipeline.is_running">⏳ Đang Chạy Luồng Tuần Tự ({{ pipeline.elapsed_seconds }}s)...</span>
         </button>
         <button nz-button class="btn-primary" (click)="triggerPlan()" [nzLoading]="actionLoading['plan']">
           🗓 Lập Lịch Ngày (7h30)
@@ -37,6 +44,143 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Auto Pipeline Scheduler Card -->
+  <div class="pipeline-auto-panel card-glass mb-20">
+    <div class="auto-panel-left">
+      <div class="auto-title-row">
+        <span class="auto-icon">🤖</span>
+        <div>
+          <div class="auto-title">Tự Động Hóa Luồng Tuần Tự (Full Pipeline 24/7)</div>
+          <div class="auto-desc">
+            Tự động cào deal mới Shopee ➔ Lập lịch phân bổ ➔ Mở Playwright đăng bài kèm ảnh và bình luận link affiliate.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auto-panel-right">
+      <!-- Switch Enabled -->
+      <div class="auto-control-item">
+        <label class="control-label">Chế độ tự động:</label>
+        <nz-switch
+          [ngModel]="pipelineAutoConfig.enabled"
+          (ngModelChange)="toggleAutoPipeline($event)"
+          [nzLoading]="updatingAutoConfig"
+          nzCheckedChildren="BẬT"
+          nzUnCheckedChildren="TẮT"
+        ></nz-switch>
+      </div>
+
+      <!-- Select Interval -->
+      <div class="auto-control-item">
+        <label class="control-label">Chu kỳ toàn luồng:</label>
+        <nz-select
+          [ngModel]="pipelineAutoConfig.interval_hours"
+          (ngModelChange)="changeAutoInterval($event)"
+          [nzDisabled]="!pipelineAutoConfig.enabled"
+          style="width: 140px;"
+        >
+          <nz-option [nzValue]="1" nzLabel="Mỗi 1 tiếng"></nz-option>
+          <nz-option [nzValue]="2" nzLabel="Mỗi 2 tiếng"></nz-option>
+          <nz-option [nzValue]="3" nzLabel="Mỗi 3 tiếng"></nz-option>
+          <nz-option [nzValue]="4" nzLabel="Mỗi 4 tiếng"></nz-option>
+          <nz-option [nzValue]="6" nzLabel="Mỗi 6 tiếng"></nz-option>
+        </nz-select>
+      </div>
+
+      <!-- Status badge & next run -->
+      <div class="auto-status-box">
+        <div class="auto-status-badge" [ngClass]="pipelineAutoConfig.enabled ? 'status-active' : 'status-paused'">
+          {{ pipelineAutoConfig.enabled ? ('🟢 Đang chạy ngầm (' + pipelineAutoConfig.interval_hours + 'h/lần + đăng 5p)') : '⚪ Đang tạm dừng' }}
+        </div>
+        <div class="auto-schedule-time" *ngIf="pipelineAutoConfig.enabled && pipelineAutoConfig.next_run_at">
+          ⏰ Tiếp theo: <b>{{ formatTime(pipelineAutoConfig.next_run_at) }}</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Pipeline Execution Card (Hiển thị nổi bật khi luồng tuần tự đang chạy) -->
+  <div *ngIf="pipeline.is_running" class="pipeline-live-card">
+    <div class="pipeline-live-header">
+      <div class="live-title-box">
+        <span class="live-pulse-dot"></span>
+        <span class="live-tag">LUỒNG TUẦN TỰ ĐANG CHẠY</span>
+        <span class="live-timer">⏱ {{ pipeline.elapsed_seconds }}s</span>
+      </div>
+      <div class="live-current-step">
+        <span class="step-badge">Đang chạy: {{ pipeline.step_name }}</span>
+      </div>
+    </div>
+
+    <!-- 3-Step Visual Progress Bar -->
+    <div class="pipeline-steps-track">
+      <!-- Step 1: Cào deal -->
+      <div class="pipeline-step" [ngClass]="{'active': pipeline.step === 1, 'done': pipeline.step > 1}">
+        <div class="step-circle">
+          <span *ngIf="pipeline.step > 1">✓</span>
+          <span *ngIf="pipeline.step === 1" class="step-spinner">🔄</span>
+          <span *ngIf="pipeline.step < 1">1</span>
+        </div>
+        <div class="step-text">
+          <div class="step-label">1. Cào Deal Sàn</div>
+          <div class="step-sub">
+            {{ pipeline.step > 1 ? ('+' + pipeline.deals_added + ' deal mới') : (pipeline.step === 1 ? 'Đang cào Shopee...' : 'Chờ') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="step-line" [class.filled]="pipeline.step >= 2"></div>
+
+      <!-- Step 2: Lập lịch -->
+      <div class="pipeline-step" [ngClass]="{'active': pipeline.step === 2, 'done': pipeline.step > 2}">
+        <div class="step-circle">
+          <span *ngIf="pipeline.step > 2">✓</span>
+          <span *ngIf="pipeline.step === 2" class="step-spinner">🔄</span>
+          <span *ngIf="pipeline.step < 2">2</span>
+        </div>
+        <div class="step-text">
+          <div class="step-label">2. Lập Lịch Phân Bổ</div>
+          <div class="step-sub">
+            {{ pipeline.step > 2 ? (pipeline.posts_planned + ' bài đăng') : (pipeline.step === 2 ? 'Đang ghép group...' : 'Chờ') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="step-line" [class.filled]="pipeline.step >= 3"></div>
+
+      <!-- Step 3: Đăng bài -->
+      <div class="pipeline-step" [ngClass]="{'active': pipeline.step === 3, 'done': pipeline.step > 3}">
+        <div class="step-circle">
+          <span *ngIf="pipeline.step > 3">✓</span>
+          <span *ngIf="pipeline.step === 3" class="step-spinner">🚀</span>
+          <span *ngIf="pipeline.step < 3">3</span>
+        </div>
+        <div class="step-text">
+          <div class="step-label">3. Đăng Playwright</div>
+          <div class="step-sub">
+            {{ pipeline.step === 3 ? 'Đang đăng FB...' : (pipeline.step > 3 ? 'Hoàn tất' : 'Chờ') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Status Message -->
+    <div class="pipeline-live-footer">
+      <span class="live-msg-icon">💬</span>
+      <span class="live-msg-text">{{ pipeline.message }}</span>
+    </div>
+  </div>
+
+  <!-- Thông báo nhanh nếu luồng Săn Deal Lazada cũng đang chạy ngầm -->
+  <div *ngIf="lazadaHunter.is_running" class="hunter-notice-bar">
+    <span class="notice-icon">⚡</span>
+    <span class="notice-text">
+      <b>Luồng Săn Deal LazMall đang chạy ngầm:</b> [{{ lazadaHunter.current_index }}/{{ lazadaHunter.total_products }} sản phẩm] ({{ lazadaHunter.elapsed_seconds }}s) — {{ lazadaHunter.message }}
+    </span>
+    <a routerLink="/lazada-deals" class="notice-link">Xem chi tiết &rarr;</a>
   </div>
 
   <!-- Cookie / Health Alert Banner -->

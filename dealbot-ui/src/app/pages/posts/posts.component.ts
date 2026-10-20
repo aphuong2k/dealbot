@@ -11,6 +11,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzTabsModule } from 'ng-zorro-antd/tabs';
 
 @Component({
   selector: 'app-posts',
@@ -25,7 +26,8 @@ import { NzInputModule } from 'ng-zorro-antd/input';
     NzSpinModule,
     NzModalModule,
     NzSwitchModule,
-    NzInputModule
+    NzInputModule,
+    NzTabsModule
   ],
   templateUrl: './posts.component.html',
   styleUrls: ['./posts.component.css']
@@ -35,6 +37,14 @@ export class PostsComponent implements OnInit {
   loading = false;
   planLoading = false;
   runDueLoading = false;
+
+  // Lịch sử đăng bài
+  selectedTabIndex = 0;
+  activePostTab: 'queue' | 'history' = 'queue';
+  historyPosts: PostItem[] = [];
+  historyLoading = false;
+  clearingHistory = false;
+  deletingPostId: number | null = null;
 
   selectedStatus = '';
   selectedAccount = '';
@@ -76,9 +86,9 @@ export class PostsComponent implements OnInit {
     private msg: NzMessageService
   ) {}
 
-
   ngOnInit(): void {
     this.fetchPosts();
+    this.loadHistory();
   }
 
   fetchPosts(): void {
@@ -95,6 +105,66 @@ export class PostsComponent implements OnInit {
     });
   }
 
+  loadHistory(): void {
+    this.historyLoading = true;
+    this.api.getPostsHistory(undefined, 50).subscribe({
+      next: (data) => {
+        this.historyPosts = data;
+        this.historyLoading = false;
+      },
+      error: () => {
+        this.historyLoading = false;
+        this.msg.error('Không thể tải lịch sử đăng bài!');
+      }
+    });
+  }
+
+  clearHistory(): void {
+    if (!confirm('Bạn có chắc chắn muốn xóa sạch toàn bộ lịch sử các bài đã đăng / đã xử lý? (Các bài đang chờ đăng trong hàng đợi sẽ được giữ nguyên an toàn)')) {
+      return;
+    }
+    this.clearingHistory = true;
+    this.api.clearPostsHistory().subscribe({
+      next: (res) => {
+        this.clearingHistory = false;
+        this.msg.success(res.message || 'Đã dọn sạch lịch sử đăng bài!');
+        this.loadHistory();
+      },
+      error: () => {
+        this.clearingHistory = false;
+        this.msg.error('Lỗi khi xóa lịch sử đăng bài!');
+      }
+    });
+  }
+
+  deleteSinglePost(post: PostItem, fromHistory = false): void {
+    if (!confirm(`Bạn có chắc muốn xóa bài đăng #${post.id} (${post.group_name || post.group_url})?`)) {
+      return;
+    }
+    this.deletingPostId = post.id;
+    this.api.deletePost(post.id).subscribe({
+      next: (res) => {
+        this.deletingPostId = null;
+        this.msg.success(res.message || `Đã xóa bài đăng #${post.id}`);
+        if (fromHistory) {
+          this.historyPosts = this.historyPosts.filter(p => p.id !== post.id);
+        } else {
+          this.posts = this.posts.filter(p => p.id !== post.id);
+        }
+      },
+      error: () => {
+        this.deletingPostId = null;
+        this.msg.error('Lỗi khi xóa bài đăng!');
+      }
+    });
+  }
+
+  formatTime(ts?: number): string {
+    if (!ts) return '-';
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString('vi-VN');
+  }
+
   triggerPlan(): void {
     this.planLoading = true;
     this.api.planPosts().subscribe({
@@ -102,6 +172,7 @@ export class PostsComponent implements OnInit {
         this.planLoading = false;
         this.msg.success(res.message);
         this.fetchPosts();
+        this.loadHistory();
       },
       error: () => {
         this.planLoading = false;
@@ -116,7 +187,10 @@ export class PostsComponent implements OnInit {
       next: (res) => {
         this.runDueLoading = false;
         this.msg.success(res.message);
-        setTimeout(() => this.fetchPosts(), 3000);
+        setTimeout(() => {
+          this.fetchPosts();
+          this.loadHistory();
+        }, 3000);
       },
       error: () => {
         this.runDueLoading = false;

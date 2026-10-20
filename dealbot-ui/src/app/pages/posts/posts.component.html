@@ -18,133 +18,301 @@
     </div>
   </div>
 
-  <!-- Filters Row -->
-  <div class="filters-card glass-card">
-    <div class="filter-item">
-      <nz-select [(ngModel)]="selectedStatus" (ngModelChange)="fetchPosts()" style="width: 220px;">
-        <nz-option *ngFor="let s of statusOptions" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
-      </nz-select>
-    </div>
-    <div class="filter-item">
-      <nz-select [(ngModel)]="selectedAccount" (ngModelChange)="fetchPosts()" style="width: 170px;">
-        <nz-option *ngFor="let a of accountOptions" [nzValue]="a.value" [nzLabel]="a.label"></nz-option>
-      </nz-select>
-    </div>
-    <button nz-button class="btn-outline" (click)="fetchPosts()">
-      Làm Mới Danh Sách
-    </button>
-  </div>
+  <!-- Main Post Tabs: Queue vs History -->
+  <nz-tabset class="posts-tabset" [(nzSelectedIndex)]="selectedTabIndex">
+    
+    <!-- TAB 1: HÀNG ĐỢI CHỜ ĐĂNG -->
+    <nz-tab [nzTitle]="tabTitleQueue">
+      <ng-template #tabTitleQueue>
+        <span>⏳ Hàng Đợi Chờ Đăng ({{ posts.length }})</span>
+      </ng-template>
 
-  <!-- Posts Table -->
-  <div class="table-container glass-card">
-    <nz-table
-      #postsTable
-      [nzData]="posts"
-      [nzLoading]="loading"
-      [nzPageSize]="10"
-      nzShowPagination
-      nzShowSizeChanger
-    >
-      <thead>
-        <tr>
-          <th nzWidth="70px">ID</th>
-          <th nzWidth="140px">Giờ Dự Kiến</th>
-          <th nzWidth="100px">Tài Khoản</th>
-          <th>Nhóm Đăng / Loại</th>
-          <th>Sub-ID Theo Dõi</th>
-          <th nzWidth="130px">Trạng Thái Bài</th>
-          <th nzWidth="140px">Bình Luận Link</th>
-          <th nzWidth="130px">Link Bài FB</th>
-          <th nzWidth="120px">Thao Tác</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let p of postsTable.data">
-          <!-- ID -->
-          <td class="font-mono">#{{ p.id }}</td>
+      <!-- Filters Row -->
+      <div class="filters-card glass-card">
+        <div class="filter-item">
+          <nz-select [(ngModel)]="selectedStatus" (ngModelChange)="fetchPosts()" style="width: 220px;">
+            <nz-option *ngFor="let s of statusOptions" [nzValue]="s.value" [nzLabel]="s.label"></nz-option>
+          </nz-select>
+        </div>
+        <div class="filter-item">
+          <nz-select [(ngModel)]="selectedAccount" (ngModelChange)="fetchPosts()" style="width: 170px;">
+            <nz-option *ngFor="let a of accountOptions" [nzValue]="a.value" [nzLabel]="a.label"></nz-option>
+          </nz-select>
+        </div>
+        <button nz-button class="btn-outline" (click)="fetchPosts()">
+          🔄 Làm Mới Danh Sách
+        </button>
+      </div>
 
-          <!-- Scheduled At -->
-          <td>
-            <div class="time-col">
-              <span class="time-main">{{ p.scheduled_at * 1000 | date:'HH:mm' }}</span>
-              <span class="time-sub">{{ p.scheduled_at * 1000 | date:'dd/MM/yyyy' }}</span>
-            </div>
-          </td>
+      <!-- Posts Table -->
+      <div class="table-container glass-card">
+        <nz-table
+          #postsTable
+          [nzData]="posts"
+          [nzLoading]="loading"
+          [nzPageSize]="10"
+          nzShowPagination
+          nzShowSizeChanger
+        >
+          <thead>
+            <tr>
+              <th nzWidth="70px">ID</th>
+              <th nzWidth="140px">Giờ Dự Kiến</th>
+              <th nzWidth="100px">Tài Khoản</th>
+              <th>Nhóm Đăng / Loại</th>
+              <th>Sub-ID Theo Dõi</th>
+              <th nzWidth="130px">Trạng Thái Bài</th>
+              <th nzWidth="140px">Bình Luận Link</th>
+              <th nzWidth="130px">Link Bài FB</th>
+              <th nzWidth="160px">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of postsTable.data">
+              <!-- ID -->
+              <td class="font-mono">#{{ p.id }}</td>
 
-          <!-- Account -->
-          <td>
-            <span class="acc-tag">{{ p.account }}</span>
-          </td>
+              <!-- Scheduled At -->
+              <td>
+                <div class="time-col">
+                  <span class="time-main">{{ p.scheduled_at * 1000 | date:'HH:mm' }}</span>
+                  <span class="time-sub">{{ p.scheduled_at * 1000 | date:'dd/MM/yyyy' }}</span>
+                </div>
+              </td>
 
-          <!-- Group & Kind -->
-          <td>
-            <div class="group-info-col">
-              <a [href]="p.group_url" target="_blank" class="group-name-link">
-                {{ p.group_name || p.group_url }}
-              </a>
-              <span class="post-kind-tag" [ngClass]="p.kind === 'digest' ? 'kind-digest' : 'kind-deal'">
-                {{ p.kind === 'digest' ? '🎟 Bản Tin' : '🛒 Bài Deal' }}
-              </span>
-            </div>
-          </td>
+              <!-- Account -->
+              <td>
+                <span class="acc-tag">{{ p.account }}</span>
+              </td>
 
-          <!-- Sub-ID -->
-          <td>
-            <div class="subid-box" [title]="p.sub_id">
-              {{ p.sub_id || 'none' }}
-            </div>
-          </td>
+              <!-- Group & Kind -->
+              <td>
+                <div class="group-info-col">
+                  <a [href]="p.group_url" target="_blank" class="group-name-link">
+                    {{ p.group_name || p.group_url }}
+                  </a>
+                  <span class="post-kind-tag" [ngClass]="p.kind === 'digest' ? 'kind-digest' : 'kind-deal'">
+                    {{ p.kind === 'digest' ? '🎟 Bản Tin' : '🛒 Bài Deal' }}
+                  </span>
+                </div>
+              </td>
 
-          <!-- Status -->
-          <td>
-            <span *ngIf="p.status === 'queued'" class="status-badge queued">⏳ Đang chờ</span>
-            <span *ngIf="p.status === 'done'" class="status-badge done">✅ Đã đăng</span>
-            <span *ngIf="p.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
-            <span *ngIf="p.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
-            <span *ngIf="p.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
-          </td>
+              <!-- Sub-ID -->
+              <td>
+                <div class="subid-box" [title]="p.sub_id">
+                  {{ p.sub_id || 'none' }}
+                </div>
+              </td>
 
-          <!-- Comment Status -->
-          <td>
-            <div class="comment-status-col">
-              <span *ngIf="p.comment_status === 'done'" class="text-success">💬 Đã comment</span>
-              <span *ngIf="p.comment_status === 'pending_approval'" class="text-warning">⏳ Hẹn retry duyệt</span>
-              <span *ngIf="p.comment_status === 'none'" class="text-muted">Không có</span>
-              <span *ngIf="p.comment_status === 'failed'" class="text-danger">Lỗi comment</span>
-            </div>
-          </td>
+              <!-- Status -->
+              <td>
+                <span *ngIf="p.status === 'queued'" class="status-badge queued">⏳ Đang chờ</span>
+                <span *ngIf="p.status === 'done'" class="status-badge done">✅ Đã đăng</span>
+                <span *ngIf="p.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
+                <span *ngIf="p.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
+                <span *ngIf="p.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
+              </td>
 
-          <!-- Link bài FB -->
-          <td>
-            <a *ngIf="p.post_url" [href]="p.post_url" target="_blank" class="post-fb-link" title="Xem bài viết trực tiếp trên Facebook">
-              🔗 Xem bài FB ↗
-            </a>
-            <span *ngIf="!p.post_url" class="text-muted" style="font-size: 12px;">-</span>
-          </td>
+              <!-- Comment Status -->
+              <td>
+                <div class="comment-status-col">
+                  <span *ngIf="p.comment_status === 'done'" class="text-success">💬 Đã comment</span>
+                  <span *ngIf="p.comment_status === 'pending_approval'" class="text-warning">⏳ Hẹn retry duyệt</span>
+                  <span *ngIf="p.comment_status === 'none'" class="text-muted">Không có</span>
+                  <span *ngIf="p.comment_status === 'failed'" class="text-danger">Lỗi comment</span>
+                </div>
+              </td>
 
-          <!-- Action -->
-          <td>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
-                👁️ Chi tiết
-              </button>
-              <button
-                *ngIf="p.status === 'queued' || p.status === 'failed'"
-                nz-button
-                nzSize="small"
-                class="btn-fire-post"
-                (click)="runNowPost(p)"
-                [nzLoading]="runningPostId === p.id"
-                title="Đăng bài này ngay lập tức"
-              >
-                ⚡ Đăng
-              </button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </nz-table>
-  </div>
+              <!-- Link bài FB -->
+              <td>
+                <a *ngIf="p.post_url" [href]="p.post_url" target="_blank" class="post-fb-link" title="Xem bài viết trực tiếp trên Facebook">
+                  🔗 Xem bài FB ↗
+                </a>
+                <span *ngIf="!p.post_url" class="text-muted" style="font-size: 12px;">-</span>
+              </td>
+
+              <!-- Action -->
+              <td>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(p)">
+                    👁️ Chi tiết
+                  </button>
+                  <button
+                    *ngIf="p.status === 'queued' || p.status === 'failed'"
+                    nz-button
+                    nzSize="small"
+                    class="btn-fire-post"
+                    (click)="runNowPost(p)"
+                    [nzLoading]="runningPostId === p.id"
+                    title="Đăng bài này ngay lập tức"
+                  >
+                    ⚡ Đăng
+                  </button>
+                  <button
+                    nz-button
+                    nzSize="small"
+                    nzDanger
+                    class="btn-delete-row"
+                    (click)="deleteSinglePost(p, false)"
+                    [nzLoading]="deletingPostId === p.id"
+                    title="Xóa bài đăng khỏi hàng đợi"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </nz-table>
+      </div>
+    </nz-tab>
+
+    <!-- TAB 2: LỊCH SỬ ĐÃ ĐĂNG -->
+    <nz-tab [nzTitle]="tabTitleHistory">
+      <ng-template #tabTitleHistory>
+        <span>📜 Lịch Sử Đã Đăng ({{ historyPosts.length }})</span>
+      </ng-template>
+
+      <!-- History Header Action Bar -->
+      <div class="history-action-bar glass-card">
+        <div>
+          <h3 class="history-title">Nhật Ký Các Bài Đã Đăng Lên Facebook & Kết Quả</h3>
+          <p class="history-subtitle">
+            Lưu vết toàn bộ bài viết đã thực hiện (thành công, thất bại, chờ duyệt, bỏ qua) cùng link bài viết trực tiếp trên Facebook.
+          </p>
+        </div>
+        <div class="history-actions-group">
+          <button nz-button (click)="loadHistory()" [nzLoading]="historyLoading">
+            🔄 Làm Mới Lịch Sử
+          </button>
+          <button
+            nz-button
+            nzDanger
+            (click)="clearHistory()"
+            [nzLoading]="clearingHistory"
+            *ngIf="historyPosts.length > 0"
+          >
+            🗑️ Xóa Sạch Toàn Bộ Lịch Sử
+          </button>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="table-container glass-card">
+        <nz-table
+          #historyTable
+          [nzData]="historyPosts"
+          [nzLoading]="historyLoading"
+          [nzPageSize]="10"
+          nzShowPagination
+          nzShowSizeChanger
+        >
+          <thead>
+            <tr>
+              <th nzWidth="70px">ID</th>
+              <th nzWidth="150px">Thời Gian Đăng</th>
+              <th nzWidth="100px">Tài Khoản</th>
+              <th>Nhóm Facebook & Loại Bài</th>
+              <th nzWidth="130px">Trạng Thái</th>
+              <th nzWidth="140px">Bình Luận Link</th>
+              <th>Link Bài Viết Facebook</th>
+              <th nzWidth="140px">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let hp of historyTable.data">
+              <!-- ID -->
+              <td class="font-mono">#{{ hp.id }}</td>
+
+              <!-- Thời gian đăng / hẹn -->
+              <td>
+                <div class="time-col">
+                  <span class="time-main" *ngIf="hp.posted_at">{{ formatTime(hp.posted_at) }}</span>
+                  <span class="time-main text-muted" *ngIf="!hp.posted_at">{{ formatTime(hp.scheduled_at) }}</span>
+                  <span class="time-sub">{{ hp.posted_at ? 'Đã hoàn tất' : 'Hẹn giờ' }}</span>
+                </div>
+              </td>
+
+              <!-- Account -->
+              <td>
+                <span class="acc-tag">{{ hp.account }}</span>
+              </td>
+
+              <!-- Group & Kind -->
+              <td>
+                <div class="group-info-col">
+                  <a [href]="hp.group_url" target="_blank" class="group-name-link">
+                    {{ hp.group_name || hp.group_url }}
+                  </a>
+                  <span class="post-kind-tag" [ngClass]="hp.kind === 'digest' ? 'kind-digest' : 'kind-deal'">
+                    {{ hp.kind === 'digest' ? '🎟 Bản Tin' : '🛒 Bài Deal' }}
+                  </span>
+                </div>
+              </td>
+
+              <!-- Status -->
+              <td>
+                <span *ngIf="hp.status === 'done'" class="status-badge done">✅ Đã đăng</span>
+                <span *ngIf="hp.status === 'pending_approval'" class="status-badge pending">⏳ Chờ duyệt</span>
+                <span *ngIf="hp.status === 'failed'" class="status-badge failed">❌ Thất bại</span>
+                <span *ngIf="hp.status === 'skipped'" class="status-badge skipped">⏭ Bỏ qua</span>
+                <span *ngIf="hp.status === 'queued'" class="status-badge queued">⏳ Hàng đợi</span>
+              </td>
+
+              <!-- Comment Status -->
+              <td>
+                <div class="comment-status-col">
+                  <span *ngIf="hp.comment_status === 'done'" class="text-success">💬 Đã comment</span>
+                  <span *ngIf="hp.comment_status === 'pending_approval'" class="text-warning">⏳ Chờ duyệt</span>
+                  <span *ngIf="hp.comment_status === 'none'" class="text-muted">Không có</span>
+                  <span *ngIf="hp.comment_status === 'failed'" class="text-danger">Lỗi comment</span>
+                </div>
+              </td>
+
+              <!-- Link Bài FB Thật -->
+              <td>
+                <div *ngIf="hp.post_url" class="history-fb-link-box">
+                  <a [href]="hp.post_url" target="_blank" class="post-live-link">
+                    🔗 Mở bài viết ↗
+                  </a>
+                  <button nz-button nzSize="small" class="btn-copy-sm" (click)="copyLink(hp.post_url)" title="Sao chép link bài viết">
+                    📋
+                  </button>
+                </div>
+                <div *ngIf="!hp.post_url" class="text-muted" style="font-size: 12px;">
+                  <span *ngIf="hp.status === 'failed' && hp.error" class="text-danger" [title]="hp.error">
+                    ⚠️ {{ (hp.error | slice:0:35) }}...
+                  </span>
+                  <span *ngIf="!hp.error">Chưa có permalink</span>
+                </div>
+              </td>
+
+              <!-- Action -->
+              <td>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button nz-button nzSize="small" class="btn-outline" (click)="viewPost(hp)">
+                    👁️ Chi tiết
+                  </button>
+                  <button
+                    nz-button
+                    nzSize="small"
+                    nzDanger
+                    class="btn-delete-row"
+                    (click)="deleteSinglePost(hp, true)"
+                    [nzLoading]="deletingPostId === hp.id"
+                    title="Xóa bài khỏi lịch sử"
+                  >
+                    🗑️ Xóa
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </nz-table>
+      </div>
+    </nz-tab>
+
+  </nz-tabset>
 
   <!-- Preview Modal -->
   <nz-modal

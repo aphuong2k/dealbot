@@ -13,6 +13,7 @@ import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 
 @Component({
   selector: 'app-deals',
@@ -29,7 +30,8 @@ import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
     NzBadgeModule,
     NzToolTipModule,
     NzModalModule,
-    NzCheckboxModule
+    NzCheckboxModule,
+    NzPopconfirmModule
   ],
   templateUrl: './deals.component.html',
   styleUrls: ['./deals.component.css']
@@ -242,5 +244,33 @@ export class DealsComponent implements OnInit {
     if (score >= 80) return '#10b981';
     if (score >= 65) return '#f59e0b';
     return '#ef4444';
+  }
+
+  clearAllDeals(): void {
+    this.modal.confirm({
+      nzTitle: '⚠️ Xác nhận XÓA TOÀN BỘ deal trong kho?',
+      nzContent: 'Toàn bộ danh sách sản phẩm & deal Shopee săn được sẽ bị xóa sạch khỏi cơ sở dữ liệu. Bạn có chắc chắn muốn xóa?',
+      nzOkText: 'Xóa Sạch Toàn Bộ',
+      nzOkDanger: true,
+      nzOnOk: () => {
+        this.api.clearAllDeals().subscribe({
+          next: (res) => {
+            this.msg.success(res.message || 'Đã xóa toàn bộ deal trong kho thành công!');
+            this.fetchDeals();
+          },
+          error: () => this.msg.error('Lỗi khi xóa danh sách deal.')
+        });
+      }
+    });
+  }
+
+  deleteSingleDeal(id: string | number): void {
+    this.api.deleteDeal(id).subscribe({
+      next: (res) => {
+        this.msg.success(res.message || `Đã xóa deal #${id}`);
+        this.fetchDeals();
+      },
+      error: () => this.msg.error('Lỗi khi xóa deal.')
+    });
   }
 }

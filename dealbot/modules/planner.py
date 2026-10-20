@@ -21,10 +21,12 @@ def plan_day(cfg):
     funnel_in_cmt = (cfg.get("funnel") or {}).get("include_in_comment", True)
 
     for d in deals:
+        d = dict(d) if not isinstance(d, dict) and hasattr(d, "keys") else d
         niche_term = (d.get("niche") or "").strip().lower()
         # Lọc group: Ưu tiên group cùng ngành hàng, hoặc group săn sale nếu deal điểm cao (>55)
         groups = db.q("""SELECT * FROM groups 
                          WHERE status IN ('joined','approved') 
+                         AND (target_type IS NULL OR target_type='posting')
                          AND (LOWER(niche)=? OR LOWER(niche) LIKE ? OR (kind='dealhunt' AND ?>=55.0))
                          AND last_posted_at<? AND fail_count<5 AND consecutive_fails<3 
                          ORDER BY priority_score DESC, RANDOM()""", 
@@ -69,8 +71,8 @@ def plan_day(cfg):
                     VALUES(?,?,?,?,?,?,'deal',?,?)""", 
                  (d["id"], g["url"], acc, cap, comment, d["image_path"], cursor[acc], sub_id))
             used_today[acc] += 1; planned += 1
+            db.x("UPDATE deals SET status='planned' WHERE id=?", (d["id"],))
             break   # 1 deal -> 1 group/ngày để không rải trùng
-        db.x("UPDATE deals SET status='planned' WHERE id=?", (d["id"],))
     return planned
 
 def _today(hour):
@@ -86,7 +88,9 @@ def plan_digests(cfg):
     img, caps, raw_comment = dg
     cutoff = time.time() - 20 * 3600
     groups = db.q("""SELECT * FROM groups 
-                     WHERE status IN ('joined','approved') AND kind='dealhunt'
+                     WHERE status IN ('joined','approved') 
+                     AND (target_type IS NULL OR target_type='posting')
+                     AND kind='dealhunt'
                      AND last_posted_at<? AND fail_count<5 AND consecutive_fails<3
                      ORDER BY priority_score DESC, RANDOM()""", (cutoff,))
     n = 0; used = {}

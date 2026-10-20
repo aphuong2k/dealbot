@@ -140,7 +140,148 @@
 .header-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+}
+
+/* --- LIVE THREAD INDICATORS --- */
+.threads-indicator-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thread-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Idle state */
+.thread-badge.idle {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+.thread-badge.idle:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-main);
+}
+
+/* Pipeline Running state */
+.pipeline-badge.running {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(2, 132, 199, 0.3));
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+  animation: pulseBlueGlow 2s infinite alternate;
+}
+.pipeline-badge.running .thread-title {
+  color: #bae6fd;
+}
+
+/* Lazada Hunter Running state */
+.hunter-badge.running {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.3));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  color: #fbbf24;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+  animation: pulseAmberGlow 2s infinite alternate;
+}
+.hunter-badge.running .thread-title {
+  color: #fef3c7;
+}
+
+/* Radar General Deep Drop Running state */
+.general-badge.running {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(168, 85, 247, 0.3));
+  border: 1px solid rgba(244, 114, 182, 0.6);
+  color: #f472b6;
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.35);
+  animation: pulsePinkGlow 2s infinite alternate;
+}
+.general-badge.running .thread-title {
+  color: #fce7f3;
+}
+
+.thread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-idle {
+  background: rgba(255, 255, 255, 0.2);
+}
+.dot-pulse-blue {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: dotFlash 1s infinite alternate;
+}
+.dot-pulse-amber {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: dotFlash 1s infinite alternate;
+}
+.dot-pulse-pink {
+  background: #ec4899;
+  box-shadow: 0 0 8px #ec4899;
+  animation: dotFlash 1s infinite alternate;
+}
+
+.thread-icon {
+  font-size: 13px;
+  display: inline-block;
+}
+.spin-slow {
+  animation: spinSlow 3s linear infinite;
+}
+.bounce-subtle {
+  animation: bounceSubtle 1.2s infinite ease-in-out;
+}
+
+.thread-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.thread-status {
+  font-size: 11px;
+}
+.text-muted {
+  opacity: 0.6;
+}
+
+@keyframes spinSlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes bounceSubtle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+
+@keyframes pulseBlueGlow {
+  0% { box-shadow: 0 0 6px rgba(56, 189, 248, 0.2); }
+  100% { box-shadow: 0 0 16px rgba(56, 189, 248, 0.55); }
+}
+
+@keyframes pulseAmberGlow {
+  0% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.2); }
+  100% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.55); }
+}
+
+@keyframes dotFlash {
+  0% { opacity: 0.4; }
+  100% { opacity: 1; transform: scale(1.2); }
 }
 
 .status-indicator-box {

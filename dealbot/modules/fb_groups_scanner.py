@@ -30,24 +30,47 @@ def _load_cookies_from_file(cookie_file: str) -> list:
     return cookies
 
 def classify_group_niche(group_name: str, fallback_niche: str = "săn sale") -> tuple:
-    """Tự động phân loại nhóm ngành & kind từ tên của group Facebook."""
+    """Tự động phân loại nhóm ngành & kind từ tên của group Facebook chuẩn xác 100%."""
     name_l = (group_name or "").lower()
     
-    if any(k in name_l for k in ["mỹ phẩm", "skincare", "làm đẹp", "son môi", "chăm sóc da", "trang điểm", "beauty", "dưỡng da"]):
+    # 1. Mỹ phẩm / Sắc đẹp
+    if any(k in name_l for k in ["mỹ phẩm", "skincare", "làm đẹp", "son môi", "chăm sóc da", "trang điểm", "beauty", "dưỡng da", "beautytips"]):
         return "mỹ phẩm", "niche"
+
+    # 2. Gia dụng / Đời sống
     if any(k in name_l for k in ["gia dụng", "yêu bếp", "nghiện nhà", "nội thất", "bếp", "đời sống", "decor", "nhà cửa", "tiện ích"]):
         return "gia dụng", "niche"
+
+    # 3. Mẹ và Bé
     if any(k in name_l for k in ["mẹ và bé", "mẹ & bé", "bỉm sữa", "nuôi con", "trẻ em", "ăn dặm", "mẹ bé", "sơ sinh"]):
         return "mẹ và bé", "niche"
-    if any(k in name_l for k in ["công nghệ", "tin học", "phụ kiện", "tai nghe", "laptop", "pc", "gaming", "điện thoại", "ios", "android"]):
+
+    # 4. Công nghệ / Phím cơ / Điện tử
+    if any(k in name_l for k in ["công nghệ", "tin học", "phụ kiện", "tai nghe", "laptop", "pc", "gaming", "điện thoại", "ios", "android", "phím cơ", "keycap", "bàn phím"]):
         return "đồ công nghệ giá rẻ", "niche"
-    if any(k in name_l for k in ["thời trang nam", "nam giới", "men fashion"]):
-        return "Thời Trang Nam", "niche"
-    if any(k in name_l for k in ["thời trang nữ", "váy", "đầm", "outfit nữ", "hội chị em"]):
+
+    # 5. Phân biệt Thời trang Nam vs Nữ
+    female_kws = ["thời trang nữ", "váy", "đầm", "outfit nữ", "hội chị em", "chị em", "xinh", "xinh xắn", "nấm lùn", "m50", "1m50", "bánh bèo", "nữ"]
+    male_kws = ["thời trang nam", "nam giới", "men fashion", "đồ nam", "phối đồ nam", "mặc đẹp nam", "nam béo", "owen", "aristino", "nam", "men"]
+
+    has_female = any(k in name_l for k in female_kws)
+    has_male = any(k in name_l for k in male_kws)
+
+    if has_female and not has_male:
         return "Thời Trang Nữ", "niche"
+    if has_male and not has_female:
+        return "Thời Trang Nam", "niche"
+    if has_female:
+        return "Thời Trang Nữ", "niche"
+    if has_male:
+        return "Thời Trang Nam", "niche"
+
+    # Thời trang chung (outfit, phối đồ, quần áo...) -> mặc định Thời Trang Nữ vì chiếm đa số trên FB
     if any(k in name_l for k in ["thời trang", "quần áo", "outfit", "phối đồ", "sneaker", "giày dép", "thanh lý đồ", "style"]):
-        return "thời trang", "niche"
-    if any(k in name_l for k in ["săn sale", "săn deal", "voucher", "mã giảm giá", "shopee", "lazada", "tiki", "khuyến mãi", "deal hời"]):
+        return "Thời Trang Nữ", "niche"
+
+    # 6. Săn deal / Sale tổng hợp
+    if any(k in name_l for k in ["săn sale", "săn deal", "voucher", "mã giảm giá", "shopee", "lazada", "tiki", "khuyến mãi", "deal hời", "chợ deal"]):
         return "săn sale shopee", "dealhunt"
         
     return fallback_niche, "dealhunt" if ("sale" in fallback_niche or "deal" in fallback_niche) else "niche"
@@ -760,7 +783,13 @@ def search_facebook_groups(
                     if not final_niche:
                         final_niche, final_kind = classify_group_niche(name)
                     else:
-                        final_kind = "dealhunt" if ("sale" in final_niche.lower() or "deal" in final_niche.lower()) else "niche"
+                        auto_n, auto_k = classify_group_niche(name)
+                        # Nếu tên nhóm có tín hiệu ngành rõ rệt khác với niche tìm kiếm
+                        if auto_n in ("Thời Trang Nữ", "Thời Trang Nam", "mỹ phẩm", "gia dụng", "đồ công nghệ giá rẻ", "mẹ và bé") and auto_n != final_niche:
+                            final_niche = auto_n
+                            final_kind = auto_k
+                        else:
+                            final_kind = "dealhunt" if ("sale" in final_niche.lower() or "deal" in final_niche.lower()) else "niche"
 
                     # Kiểm tra trạng thái tham gia hiện tại trên Facebook
                     t_low = card_text.lower()

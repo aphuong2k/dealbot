@@ -29,6 +29,11 @@
         <span>Kho Deal Sản Phẩm</span>
       </li>
 
+      <li nz-menu-item routerLink="/lazada-deals" routerLinkActive="ant-menu-item-selected">
+        <span class="menu-icon">⚡</span>
+        <span>Săn Deal LazMall (5p)</span>
+      </li>
+
       <li nz-menu-item routerLink="/groups" routerLinkActive="ant-menu-item-selected">
         <span class="menu-icon">👥</span>
         <span>Hội Nhóm & Đăng Bài</span>
@@ -67,6 +72,66 @@
       </div>
 
       <div class="header-right">
+        <!-- Live Thread Indicators -->
+        <div class="threads-indicator-group">
+          <!-- 1. Luồng tuần tự Pipeline Indicator -->
+          <a
+            routerLink="/dashboard"
+            class="thread-badge pipeline-badge"
+            [ngClass]="{'running': pipeline.is_running, 'idle': !pipeline.is_running}"
+            nz-tooltip
+            [nzTooltipTitle]="pipeline.is_running ? ('Luồng Tuần Tự đang chạy: ' + pipeline.message) : (pipeline.last_result || 'Luồng Tuần Tự: Sẵn sàng')"
+          >
+            <span class="thread-dot" [ngClass]="pipeline.is_running ? 'dot-pulse-blue' : 'dot-idle'"></span>
+            <span class="thread-icon" [class.spin-slow]="pipeline.is_running">🔄</span>
+            <span class="thread-title">Tuần Tự:</span>
+            <span class="thread-status" *ngIf="pipeline.is_running">
+              {{ pipeline.step_name }} ({{ pipeline.elapsed_seconds }}s)
+            </span>
+            <span class="thread-status text-muted" *ngIf="!pipeline.is_running">
+              {{ (pipeline.last_finished_at > 0) ? 'Xong' : 'Sẵn sàng' }}
+            </span>
+          </a>
+
+          <!-- 2. Luồng săn deal Lazada Hunter Indicator -->
+          <a
+            routerLink="/lazada-deals"
+            class="thread-badge hunter-badge"
+            [ngClass]="{'running': lazadaHunter.is_running, 'idle': !lazadaHunter.is_running}"
+            nz-tooltip
+            [nzTooltipTitle]="lazadaHunter.is_running ? ('Đang săn deal Lazada: ' + lazadaHunter.message) : (lazadaHunter.last_result || 'Lazada Hunter: Chờ chu kỳ 5p')"
+          >
+            <span class="thread-dot" [ngClass]="lazadaHunter.is_running ? 'dot-pulse-amber' : 'dot-idle'"></span>
+            <span class="thread-icon" [class.bounce-subtle]="lazadaHunter.is_running">⚡</span>
+            <span class="thread-title">Săn Laz:</span>
+            <span class="thread-status" *ngIf="lazadaHunter.is_running">
+              [{{ lazadaHunter.current_index }}/{{ lazadaHunter.total_products }}] ({{ lazadaHunter.elapsed_seconds }}s)
+            </span>
+            <span class="thread-status text-muted" *ngIf="!lazadaHunter.is_running">
+              {{ (lazadaHunter.last_finished_at > 0) ? 'Chờ 5p' : 'Sẵn sàng' }}
+            </span>
+          </a>
+
+          <!-- 3. Radar Quét Sập Sàn Toàn Sàn (Tmall / LazMall) Indicator -->
+          <a
+            routerLink="/lazada-deals"
+            class="thread-badge general-badge"
+            [ngClass]="{'running': lazadaGeneral.is_running, 'idle': !lazadaGeneral.is_running}"
+            nz-tooltip
+            [nzTooltipTitle]="lazadaGeneral.is_running ? ('Radar Sập Sàn đang quét: ' + lazadaGeneral.message) : (lazadaGeneral.last_result || 'Radar Sập Sàn: Sẵn sàng')"
+          >
+            <span class="thread-dot" [ngClass]="lazadaGeneral.is_running ? 'dot-pulse-pink' : 'dot-idle'"></span>
+            <span class="thread-icon" [class.bounce-subtle]="lazadaGeneral.is_running">🔥</span>
+            <span class="thread-title">Radar Tmall:</span>
+            <span class="thread-status" *ngIf="lazadaGeneral.is_running">
+              [{{ lazadaGeneral.current_index }}/{{ lazadaGeneral.total_keywords }}] ({{ lazadaGeneral.elapsed_seconds }}s)
+            </span>
+            <span class="thread-status text-muted" *ngIf="!lazadaGeneral.is_running">
+              {{ lazadaGeneral.deals_found > 0 ? (lazadaGeneral.deals_found + ' deal') : 'Sẵn sàng' }}
+            </span>
+          </a>
+        </div>
+
         <!-- API Online Status Indicator -->
         <div class="status-indicator-box">
           <span class="indicator-dot" [ngClass]="apiOnline ? 'dot-online' : 'dot-offline'"></span>
